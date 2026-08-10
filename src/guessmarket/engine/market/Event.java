@@ -1,4 +1,4 @@
-package guessmarket.engine.market;
+package src.guessmarket.engine.market;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,14 +19,15 @@ public final class Event {
     private Option winningOption;
     private double totalCommissionCollected;
 
+
+
     public Event(
             int id,
             String name,
             String description,
             int commissionPercentage,
             CommissionMethod commissionMethod,
-            LMSR tradingMethod,
-            Account account) {
+            LMSR tradingMethod) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException(
                     "Event name cannot be null or blank"
@@ -57,11 +58,6 @@ public final class Event {
             );
         }
 
-        if (account == null) {
-            throw new IllegalArgumentException(
-                    "Event account cannot be null"
-            );
-        }
 
         List<Option> eventOptions = List.copyOf(tradingMethod.getOptions());
 
@@ -76,7 +72,7 @@ public final class Event {
                     "An event must contain two distinct options"
             );
         }
-
+        Account account = new Account(0);
         this.id = id;
         this.name = name;
         this.description = description;

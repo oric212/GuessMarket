@@ -1,4 +1,4 @@
-package guessmarket.engine.market;
+package src.guessmarket.engine.market;
 
 public final class Trade {
     private final Option option;

@@ -1,4 +1,4 @@
-package guessmarket.engine.market;
+package src.guessmarket.engine.market;
 
 /**
  * Identifies the trading mechanism used by an event.

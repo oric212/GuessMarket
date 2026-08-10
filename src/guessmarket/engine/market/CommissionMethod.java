@@ -1,4 +1,4 @@
-package guessmarket.engine.market;
+package src.guessmarket.engine.market;
 
 public enum CommissionMethod {
     ON_PURCHASE,
