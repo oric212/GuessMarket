@@ -245,4 +245,13 @@ public final class Event {
         }
     }
 
+    public int getQuantityBought(Option option) {
+        validateOption(option);
+        return tradingMethod.getQuantityBought(option);
+    }
+
+    public double getOptionPrice(Option option) {
+        validateOption(option);
+        return tradingMethod.calculateCurrentValue(option);
+    }
 }

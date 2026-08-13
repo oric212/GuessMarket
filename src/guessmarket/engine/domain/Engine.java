@@ -1,5 +1,9 @@
-package src.guessmarket.engine.domain;
+package guessmarket.engine.domain;
 
+import guessmarket.dto.EventDTO;
+import guessmarket.dto.EventStateDTO;
+import guessmarket.dto.PurchaseResultDTO;
+import guessmarket.dto.CloseResultDTO;
 import java.util.List;
 
 public interface Engine {
