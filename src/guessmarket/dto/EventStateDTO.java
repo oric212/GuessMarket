@@ -9,6 +9,7 @@ public record EventStateDTO(
     double totalCommissionCollected,
     List<OptionStateDTO> optionStateDTOList,
     List<TradeDTO> trades,
-    String eventStatus
+    String eventState,
+    String winningOption
 ){
 }

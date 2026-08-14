@@ -3,7 +3,7 @@ package guessmarket.engine.market;
 public final class Trade {
     private final Option option;
     private final int quantity;
-    private final double pricePaid;
+    private final double purchaseCost;
     private final double commissionPaid;
 
     Trade(Option option, int quantity, double pricePaid, double commissionPaid) {
@@ -33,7 +33,7 @@ public final class Trade {
 
         this.option = option;
         this.quantity = quantity;
-        this.pricePaid = pricePaid;
+        this.purchaseCost = pricePaid;
         this.commissionPaid = commissionPaid;
     }
 
@@ -45,8 +45,8 @@ public final class Trade {
         return quantity;
     }
 
-    public double getPricePaid() {
-        return pricePaid;
+    public double getPurchaseCost() {
+        return purchaseCost;
     }
 
     public double getCommissionPaid() {

@@ -8,7 +8,7 @@ import java.util.*;
 
 public class GuessMarketEngine implements Engine {
 
-    private Map<Integer, Event> eventsById = new LinkedHashMap<>();;
+    private Map<Integer, Event> eventsById = new LinkedHashMap<>();
 
     @Override
     public void loadMarketFromXml(String xmlFilePath) {
@@ -22,14 +22,22 @@ public class GuessMarketEngine implements Engine {
     @Override
     public List<EventDTO> getEventSummaries() {
         List<EventDTO> eventSummaries = new ArrayList<>();
+        for (Event e:eventsById.values()) {
 
-        for(Event e:eventsById.values()){
             List<String> optionNames = convertOptionsToStrings(e.getOptions());
-            EventDTO eventDTO =
-                    new EventDTO(e.getId(),e.getName(),e.getDescription(),e.getCommissionPercentage(),e.getCommissionMethod().name(),optionNames);
+                    EventDTO eventDTO = new EventDTO(
+                    e.getId(),
+                    e.getName(),
+                    e.getDescription(),
+                    e.getCommissionPercentage(),
+                    e.getCommissionMethod().name(),
+                    optionNames,
+                    e.getState().name()
+            );
 
             eventSummaries.add(eventDTO);
         }
+
         return eventSummaries;
     }
 
@@ -37,12 +45,42 @@ public class GuessMarketEngine implements Engine {
     public EventStateDTO getEventState(int eventId) {
         Event requestedEvent = eventsById.get(eventId);
 
-        if (requestedEvent == null) {
-            throw new IllegalArgumentException(
-                    "No event exists with id: " + eventId
-            );
-        }
+        validateEvent(eventId, requestedEvent);
 
+        List<OptionStateDTO> optionStateDTOs = createOptionStateDtoList(requestedEvent);
+        List<TradeDTO> tradeDTOs = createTradeDTOList(requestedEvent);
+
+        return new EventStateDTO(
+                requestedEvent.getId(),
+                requestedEvent.getName(),
+                requestedEvent.getAccountBalance(),
+                requestedEvent.getTotalCommissionCollected(),
+                optionStateDTOs,
+                tradeDTOs,
+                requestedEvent.getState().name(),
+                requestedEvent
+                .getWinningOption()
+                .map(Option::getName)
+                .orElse(null)
+        );
+    }
+
+    private static List<TradeDTO> createTradeDTOList(Event requestedEvent) {
+        List<TradeDTO> tradeDTOs = new ArrayList<>();
+
+        for (Trade trade : requestedEvent.getTradeHistory().reversed()) {
+            TradeDTO tradeDTO = new TradeDTO(
+                    trade.getOption().getName(),
+                    trade.getQuantity(),
+                    trade.getPurchaseCost()
+            );
+
+            tradeDTOs.add(tradeDTO);
+        }
+        return tradeDTOs;
+    }
+
+    private List<OptionStateDTO> createOptionStateDtoList(Event requestedEvent) {
         List<OptionStateDTO> optionStateDTOs = new ArrayList<>();
 
         for (Option option : requestedEvent.getOptions()) {
@@ -55,37 +93,43 @@ public class GuessMarketEngine implements Engine {
             optionStateDTOs.add(optionStateDTO);
         }
 
-        List<TradeDTO> tradeDTOs = new ArrayList<>();
+        return optionStateDTOs;
+    }
 
-        for (Trade trade : requestedEvent.getTradeHistory()) {
-            TradeDTO tradeDTO = new TradeDTO(
-                    trade.getOption().getName(),
-                    trade.getQuantity(),
-                    trade.getPricePaid()
-            );
-
-            tradeDTOs.add(tradeDTO);
+    private void validateEvent(int eventId, Event requestedEvent) {
+        if (requestedEvent == null) {
+            throw new IllegalArgumentException("No event exists with id: " + eventId);
         }
+    }
 
-        return new EventStateDTO(
+    @Override
+    public PurchaseResultDTO purchaseShares(int eventId, int optionChoice, int quantity) {
+        Event requestedEvent = eventsById.get(eventId);
+        validateEvent(eventId, requestedEvent);
+
+        Option option = requestedEvent.getOptionByChoice(optionChoice);
+        Trade trade = requestedEvent.purchase(option,quantity);
+
+        return new PurchaseResultDTO(
                 requestedEvent.getId(),
                 requestedEvent.getName(),
-                requestedEvent.getAccountBalance(),
-                requestedEvent.getTotalCommissionCollected(),
-                optionStateDTOs,
-                tradeDTOs,
-                requestedEvent.getStatus().name()
-        );
+                trade.getPurchaseCost() + trade.getCommissionPaid(),
+                trade.getPurchaseCost(),
+                trade.getCommissionPaid(),
+                requestedEvent.getState().name()
+                );
     }
 
-    @Override
-    public PurchaseResultDTO purchaseShares(int eventId, int optionIndex, int quantity) {
-        return null;
-    }
 
     @Override
-    public CloseResultDTO closeEvent(int eventId, int winningOptionIndex) {
-        return null;
+    public EventStateDTO closeEvent(int eventId, int winningOptionChoice) {
+        Event requestedEvent = eventsById.get(eventId);
+        validateEvent(eventId, requestedEvent);
+
+        Option winningOption = requestedEvent.getOptionByChoice(winningOptionChoice);
+        requestedEvent.close(winningOption);
+
+        return getEventState(eventId);
     }
 
     private Map<Integer, Event> createEvents(List<EventXmlData> eventXmlData){
@@ -99,7 +143,8 @@ public class GuessMarketEngine implements Engine {
             CommissionMethod commissionMethod = createCommissionMethod(e.commissionMethod());
             List<Option> options = createOptions(e.options());
             LMSR tradingMethod = createTradingMethod(e.tradingMethod(),options);
-            Account account = new Account(0.0);
+            double initialSubsidy = tradingMethod.calculateInitialSubsidy();
+            Account account = new Account(initialSubsidy);
 
             Event event = new Event(id,e.name(),e.description(),commissionPercentage,commissionMethod,tradingMethod,account);
             events.put(event.getId(),event);
@@ -145,17 +190,17 @@ public class GuessMarketEngine implements Engine {
         return optionNames;
     }
 
-    private CommissionMethod createCommissionMethod(String s) {
-        if ("ON_PURCHASE".equals(s)) {
+    private CommissionMethod createCommissionMethod(String commissionMethod) {
+        if ("ON_PURCHASE".equals(commissionMethod)) {
             return CommissionMethod.ON_PURCHASE;
         }
 
-        if ("ON_CLOSE".equals(s)) {
+        if ("ON_CLOSE".equals(commissionMethod)) {
             return CommissionMethod.ON_CLOSE;
         }
 
         throw new IllegalArgumentException(
-                "Unsupported commission method: " + s
+                "Unsupported commission method: " + commissionMethod
         );
     }
 }

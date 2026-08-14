@@ -3,7 +3,6 @@ package guessmarket.engine.domain;
 import guessmarket.dto.EventDTO;
 import guessmarket.dto.EventStateDTO;
 import guessmarket.dto.PurchaseResultDTO;
-import guessmarket.dto.CloseResultDTO;
 import java.util.List;
 
 public interface Engine {
@@ -16,5 +15,5 @@ public interface Engine {
 
     PurchaseResultDTO purchaseShares(int eventId, int optionIndex, int quantity);
 
-    CloseResultDTO closeEvent(int eventId, int winningOptionIndex);
+    EventStateDTO closeEvent(int eventId, int winningOptionIndex);
 }

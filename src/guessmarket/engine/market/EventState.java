@@ -1,6 +1,6 @@
 package guessmarket.engine.market;
 
-public enum EventStatus {
+public enum EventState {
     ACTIVE,
     CLOSED
 }

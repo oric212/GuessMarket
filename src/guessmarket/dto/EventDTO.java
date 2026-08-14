@@ -7,7 +7,8 @@ public record EventDTO (
     String description,
     int commissionPercentage,
     String commissionMethod,
-    List <String> options
+    List <String> options,
+    String eventState
 ){
 }
 
