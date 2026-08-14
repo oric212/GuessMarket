@@ -1,6 +1,6 @@
 package guessmarket.engine.domain;
 
 record LmsrXmlData(
-        String liquidityParameter
+        int liquidityParameter
 ) implements TradingMethodXmlData {
 }

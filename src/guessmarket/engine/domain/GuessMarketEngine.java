@@ -94,8 +94,8 @@ public class GuessMarketEngine implements Engine {
 
         for (EventXmlData e:eventXmlData) {
 
-            int id = Integer.parseInt(e.id());
-            int commissionPercentage = Integer.parseInt(e.commission());
+            int id = e.id();
+            int commissionPercentage = e.commission();
             CommissionMethod commissionMethod = createCommissionMethod(e.commissionMethod());
             List<Option> options = createOptions(e.options());
             LMSR tradingMethod = createTradingMethod(e.tradingMethod(),options);
@@ -113,9 +113,7 @@ public class GuessMarketEngine implements Engine {
 
     private LMSR createTradingMethod(TradingMethodXmlData tradingMethodXmlData, List<Option> options) {
         switch (tradingMethodXmlData) {
-            case LmsrXmlData(String liquidityParameterText):
-
-                int liquidityParameter = Integer.parseInt(liquidityParameterText);
+            case LmsrXmlData(int liquidityParameter):
                 return new LMSR(liquidityParameter, options);
 
             default:
