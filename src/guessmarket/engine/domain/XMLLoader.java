@@ -71,7 +71,7 @@ public class XMLLoader {
 
         return new EventXmlData(
                 event.getId(),
-                event.getName().get(0),
+                String.join(" ", event.getName()),
                 event.getDescription(),
                 event.getComision().getValue(),
                 event.getComision().getType(),

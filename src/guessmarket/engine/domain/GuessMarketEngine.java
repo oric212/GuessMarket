@@ -191,11 +191,11 @@ public class GuessMarketEngine implements Engine {
     }
 
     private CommissionMethod createCommissionMethod(String commissionMethod) {
-        if ("ON_PURCHASE".equals(commissionMethod)) {
+        if ("on-purchase".equals(commissionMethod)) {
             return CommissionMethod.ON_PURCHASE;
         }
 
-        if ("ON_CLOSE".equals(commissionMethod)) {
+        if ("on-close".equals(commissionMethod)) {
             return CommissionMethod.ON_CLOSE;
         }
 
