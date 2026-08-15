@@ -122,4 +122,9 @@ public final class LMSR implements TradingMethod {
     private double calculateExponent(Option option) {
         return Math.exp(quantitiesByOption.get(option) / (double) liquidityParameter);
     }
+
+    public int getQuantityBought(Option option) {
+        return quantitiesByOption.get(option);
+    }
+
 }

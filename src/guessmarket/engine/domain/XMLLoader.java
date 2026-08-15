@@ -1,23 +1,20 @@
 package guessmarket.engine.domain;
 
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
+import guessmarket.jaxb.GMEvent;
+import guessmarket.jaxb.GMLMSR;
+import guessmarket.jaxb.GuessMarket;
+import jakarta.xml.bind.JAXBContext;
+import jakarta.xml.bind.JAXBException;
+import jakarta.xml.bind.Unmarshaller;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import java.io.*;
+import java.io.File;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
-public class XMLLoader {
-    private final DocumentBuilderFactory factory;
 
-    public XMLLoader(){
-        this.factory = DocumentBuilderFactory.newInstance();
-    }
+public class XMLLoader {
 
     private void validatePath(String path){
         if (path == null){
@@ -38,61 +35,77 @@ public class XMLLoader {
         }
     }
 
-    private Document parseXmlFromPath(String path){
-        Document doc;
+    private GuessMarket unmarshalWithJaxb(String path){
+        try{
+            JAXBContext context = JAXBContext.newInstance(GuessMarket.class);
 
-        try(InputStream xmlFileInputStream = new FileInputStream(path)){
-            doc = parseXml(xmlFileInputStream);
+            Unmarshaller unmarshaller = context.createUnmarshaller();
 
-        } catch (FileNotFoundException e) {
-            throw new UncheckedIOException("XML file was not found",e);
-        } catch (IOException e) {
-            throw new UncheckedIOException("An I/O error occurred while loading XML", e);
+            return (GuessMarket) unmarshaller.unmarshal(new File(path));
+
+        } catch (JAXBException e) {
+
+            throw new RuntimeException("Failed to load XML file", e);
         }
-
-        return doc;
     }
 
-    private Document parseXml(InputStream xmlFileInputStream) {
-        Document doc;
+    private List<EventXmlData> convertJaxbEvents(GuessMarket market){
+        List<EventXmlData> events = new ArrayList<>();
 
-        try {
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            doc = builder.parse(xmlFileInputStream);
-            doc.getDocumentElement().normalize();
-        } catch (ParserConfigurationException e) {
-            throw new RuntimeException("Failed to create XML parser", e);
-        } catch (SAXException e) {
-            throw new RuntimeException("XML is malformed or could not be parsed", e);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed while reading XML input", e);
+        for (GMEvent event : market.getGMEvents().getGMEvent()){
+            events.add(convertEvent(event));
         }
 
-        return doc;
+        return events;
     }
 
-    private void validateXmlFile(Document doc){
-        Element root = doc.getDocumentElement();
+    private EventXmlData convertEvent(GMEvent event){
+        List<String> options = new ArrayList<>();
 
-        NodeList events = root.getElementsByTagName("GM-event");
-        Set<String> idSet = new HashSet<>();
+        for (String option : event.getGMOptions().getGMOption()) {
+            options.add(option);
+        }
 
-        for (int i = 0; i < events.getLength(); i++) {
-            Element event = (Element) events.item(i);
+        TradingMethodXmlData tradingMethod =
+                convertTradingMethod(event);
 
-            String id = event.getElementsByTagName("id")
-                    .item(0)
-                    .getTextContent();
+        return new EventXmlData(
+                event.getId(),
+                String.join(" ", event.getName()),
+                event.getDescription(),
+                event.getComision().getValue(),
+                event.getComision().getType(),
+                options,
+                tradingMethod
+        );
+    }
+
+    private TradingMethodXmlData convertTradingMethod(GMEvent event) {
+        if (event.getGMMethod().getGMLMSR() != null) {
+            return convertLmsr(event.getGMMethod().getGMLMSR());
+        }
+
+        throw new IllegalArgumentException("Unsupported trading method");
+    }
+
+    private LmsrXmlData convertLmsr(GMLMSR lmsr) {
+        return new LmsrXmlData(lmsr.getB());
+    }
+
+
+
+
+    private void validateXmlFile(List<EventXmlData> events){
+        Set<Integer> idSet = new HashSet<>();
+
+        for (EventXmlData event : events) {
+            int id = event.id();
 
             if (idSet.contains(id)) {
                 throw new IllegalArgumentException("XML file is not valid application-wise, each event must have a unique id");
             }
 
-            String commissionText = event.getElementsByTagName("commission")
-                    .item(0)
-                    .getTextContent();
-
-            int commission = Integer.parseInt(commissionText);
+            int commission = event.commission();
 
             if (commission < 0 || commission > 90){
                 throw new IllegalArgumentException("XML file is not valid application-wise, Each event must fulfill 0 <= commission <= 90");
@@ -103,12 +116,13 @@ public class XMLLoader {
 
     }
 
-    public Document validateXmlFileFromPath(String path){
+    List<EventXmlData> loadEventsFromXml(String path){
         validatePath(path);
-        Document doc = parseXmlFromPath(path);
-        validateXmlFile(doc);
+        GuessMarket guessMarket = unmarshalWithJaxb(path);
+        List<EventXmlData> events = convertJaxbEvents(guessMarket);
+        validateXmlFile(events);
 
-        return doc;
+        return events;
     }
 
 

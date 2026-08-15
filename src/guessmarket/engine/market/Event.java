@@ -15,7 +15,7 @@ public final class Event {
     private final Account account;
     private final List<Trade> tradeHistory;
 
-    private EventStatus status;
+    private EventState state;
     private Option winningOption;
     private double totalCommissionCollected;
 
@@ -86,7 +86,7 @@ public final class Event {
         this.tradingMethod = tradingMethod;
         this.account = account;
         this.tradeHistory = new ArrayList<>();
-        this.status = EventStatus.ACTIVE;
+        this.state = EventState.ACTIVE;
     }
 
     public int getId() {
@@ -109,8 +109,8 @@ public final class Event {
         return commissionMethod;
     }
 
-    public EventStatus getStatus() {
-        return status;
+    public EventState getState() {
+        return state;
     }
 
     public double getAccountBalance() {
@@ -217,7 +217,7 @@ public final class Event {
 
         totalCommissionCollected = updatedCommissionTotal;
         this.winningOption = winningOption;
-        status = EventStatus.CLOSED;
+        state = EventState.CLOSED;
     }
 
     private void validateOption(Option option) {
@@ -238,11 +238,30 @@ public final class Event {
 
     private void validateEventIsActive() {
 
-        if (status != EventStatus.ACTIVE) {
+        if (state != EventState.ACTIVE) {
             throw new IllegalStateException(
                     "Event must be active to perform this operation"
             );
         }
     }
 
+    public int getQuantityBought(Option option) {
+        validateOption(option);
+        return tradingMethod.getQuantityBought(option);
+    }
+
+    public double getOptionPrice(Option option) {
+        validateOption(option);
+        return tradingMethod.calculateCurrentValue(option);
+    }
+
+    public Option getOptionByChoice(int optionChoice) {
+        if (optionChoice < 1 || optionChoice > options.size()) {
+            throw new IllegalArgumentException(
+                    "Option choice must be between 1 and " + options.size()
+            );
+        }
+
+        return options.get(optionChoice - 1);
+    }
 }
