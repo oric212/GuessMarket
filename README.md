@@ -1,6 +1,6 @@
 # GuessMarket
 
-GuessMarket is a **Java prediction market system** developed as part of a four-assignment university Object-Oriented Programming project.
+GuessMarket is a **Java prediction market system** developed as part of a four-assignment Object-Oriented Programming project.
 
 This repository contains **Exercise 01**, the first iteration of the project. The system is designed to evolve across four assignments, with each iteration extending the functionality and architecture introduced in the previous stage.
 
