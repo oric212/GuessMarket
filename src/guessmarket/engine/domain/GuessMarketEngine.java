@@ -3,12 +3,22 @@ package guessmarket.engine.domain;
 import guessmarket.dto.*;
 import guessmarket.engine.market.*;
 
+import java.io.*;
 import java.util.*;
 
 
-public class GuessMarketEngine implements Engine {
-
+public class GuessMarketEngine implements Engine, Serializable {
+    @Serial
+    private static final long serialVersionUID = 1L;
     private Map<Integer, Event> eventsById = new LinkedHashMap<>();
+
+    public void saveState(String filePath) throws IOException {
+        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(filePath))) {
+            out.writeObject(this);
+        }
+    }
+
+
 
     @Override
     public void loadMarketFromXml(String xmlFilePath) {

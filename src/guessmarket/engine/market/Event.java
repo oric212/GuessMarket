@@ -1,10 +1,11 @@
 package guessmarket.engine.market;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public final class Event {
+public final class Event implements Serializable {
     private final int id;
     private final String name;
     private final String description;

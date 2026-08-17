@@ -1,6 +1,8 @@
 package guessmarket.engine.market;
 
-public final class Account {
+import java.io.Serializable;
+
+public final class Account implements Serializable {
     private double balance;
 
     public Account(double initialBalance) {

@@ -1,6 +1,8 @@
 package guessmarket.engine.market;
 
-public enum CommissionMethod {
+import java.io.Serializable;
+
+public enum CommissionMethod implements Serializable {
     ON_PURCHASE,
     ON_CLOSE
 }

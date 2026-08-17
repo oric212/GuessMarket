@@ -1,6 +1,8 @@
 package guessmarket.engine.market;
 
-public enum EventState {
+import java.io.Serializable;
+
+public enum EventState implements Serializable {
     ACTIVE,
     CLOSED
 }

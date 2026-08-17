@@ -1,6 +1,8 @@
 package guessmarket.engine.market;
 
-public final class Trade {
+import java.io.Serializable;
+
+public final class Trade implements Serializable {
     private final Option option;
     private final int quantity;
     private final double purchaseCost;
