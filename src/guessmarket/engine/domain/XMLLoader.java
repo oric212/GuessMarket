@@ -95,25 +95,28 @@ public class XMLLoader {
 
 
 
-    private void validateXmlFile(List<EventXmlData> events){
+    private void validateXmlFile(List<EventXmlData> events) {
         Set<Integer> idSet = new HashSet<>();
 
         for (EventXmlData event : events) {
             int id = event.id();
 
-            if (idSet.contains(id)) {
-                throw new IllegalArgumentException("XML file is not valid application-wise, each event must have a unique id");
+            if (!idSet.add(id)) {
+                throw new IllegalArgumentException("XML file is not valid application-wise: duplicate event ID " + id);
             }
 
             int commission = event.commission();
 
-            if (commission < 0 || commission > 90){
-                throw new IllegalArgumentException("XML file is not valid application-wise, Each event must fulfill 0 <= commission <= 90");
+            if (commission < 0 || commission > 90) {
+                throw new IllegalArgumentException(
+                        "XML file is not valid application-wise: event " + id + " must have commission between 0 and 90.");
             }
 
-            idSet.add(id);
+            if (event.options().size() != 2) {
+                throw new IllegalArgumentException(
+                        "XML file is not valid application-wise: event " + id + " must contain exactly 2 options.");
+            }
         }
-
     }
 
     List<EventXmlData> loadEventsFromXml(String path){
