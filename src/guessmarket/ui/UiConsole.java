@@ -68,7 +68,7 @@ public class UiConsole implements Ui {
     private void handleStartMenu() {
         printStartMenu();
 
-        String userInput = scanner.next().trim();
+        String userInput = scanner.nextLine().trim();
         switch (userInput) {
             case "1" -> {
                 printXMLLoad();
