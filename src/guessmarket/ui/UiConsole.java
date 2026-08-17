@@ -72,6 +72,7 @@ public class UiConsole implements Ui {
         switch (userInput) {
             case "1" -> {
                 printXMLLoad();
+                userInput = scanner.nextLine().trim();
                 try {
                     engine.loadMarketFromXml(userInput);
                     currentState = UiState.LOADED_MAIN_MENU;
