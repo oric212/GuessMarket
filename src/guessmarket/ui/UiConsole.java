@@ -46,20 +46,25 @@ public class UiConsole implements Ui {
 
         String userInput = scanner.nextLine().trim();
 
-        try {
-            engine.loadMarketFromXml(userInput);
-            currentState = UiState.LOADED_MAIN_MENU;
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            moveToErrorScreen(e.getMessage());
+        switch (userInput) {
+            case "1" -> handleLoadXmlFile();
+            case "2" -> handleLoadState();
+            case "3" -> currentState = UiState.EXIT;
+            default -> moveToErrorScreen("Invalid menu option.");
         }
     }
 
     private void handleLoadXmlFile() {
         System.out.println("Enter the full XML file path:");
-        String userInput = scanner.nextLine().trim();
+        String filePath = scanner.nextLine().trim();
 
         try {
-            engine.loadMarketFromXml(userInput);
+            engine.loadMarketFromXml(filePath);
+
+            if (currentState == UiState.START_MAIN_MENU) {
+                currentState = UiState.LOADED_MAIN_MENU;
+            }
+
         } catch (IllegalArgumentException | IllegalStateException e) {
             moveToErrorScreen(e.getMessage());
         }
@@ -73,10 +78,43 @@ public class UiConsole implements Ui {
         switch (userInput) {
             case "1" -> currentState = UiState.MARKET_ACTIONS;
             case "2" -> handleLoadXmlFile();
-            case "3" -> currentState = UiState.EXIT;
+            case "3" -> handleSaveState();
+            case "4" -> handleLoadState();
+            case "5" -> currentState = UiState.EXIT;
             default -> moveToErrorScreen("Invalid menu option.");
         }
     }
+
+    private void handleSaveState() {
+        System.out.println(
+                "Enter the full path for saving the system state, without extension:"
+        );
+        String filePath = scanner.nextLine().trim();
+
+        try {
+            engine.saveState(filePath);
+            System.out.println("System state saved successfully.");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            moveToErrorScreen(e.getMessage());
+        }
+    }
+
+    private void handleLoadState() {
+        System.out.println(
+                "Enter the full path of the saved system state, without extension:"
+        );
+        String filePath = scanner.nextLine().trim();
+
+        try {
+            engine.loadState(filePath);
+            System.out.println("System state loaded successfully.");
+            currentState = UiState.LOADED_MAIN_MENU;
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            moveToErrorScreen(e.getMessage());
+        }
+    }
+
+
 
     private void handleMarketActions() {
         printMarketActionsMenu();
@@ -285,10 +323,14 @@ public class UiConsole implements Ui {
         }
     }
 
+
+
     private void printStartMenu() {
         System.out.println();
         System.out.println("=== GUESS MARKET ===");
-        System.out.println("Enter the full XML file path:");
+        System.out.println("1. Load XML File");
+        System.out.println("2. Load Saved State");
+        System.out.println("3. Exit");
     }
 
     private void printLoadedMainMenu() {
@@ -296,7 +338,9 @@ public class UiConsole implements Ui {
         System.out.println("=== MAIN MENU ===");
         System.out.println("1. Enter Market Actions");
         System.out.println("2. Load Another XML File");
-        System.out.println("3. Exit");
+        System.out.println("3. Save System State");
+        System.out.println("4. Load Saved State");
+        System.out.println("5. Exit");
     }
 
     private void printMarketActionsMenu() {

@@ -21,11 +21,6 @@ public interface Engine {
 
     EventStateDTO closeEvent(int eventId, int winningOptionIndex);
 
-    void saveState(String filePath) throws IOException;
-
-    static Engine loadState(String filePath) throws IOException, ClassNotFoundException {
-        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(filePath))) {
-            return (Engine) in.readObject();
-        }
-    }
+    void saveState(String filePath);
+    void loadState(String filePath);
 }

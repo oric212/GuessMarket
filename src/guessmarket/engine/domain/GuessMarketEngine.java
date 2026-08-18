@@ -12,13 +12,50 @@ public class GuessMarketEngine implements Engine, Serializable {
     private static final long serialVersionUID = 1L;
     private Map<Integer, Event> eventsById = new LinkedHashMap<>();
 
-    public void saveState(String filePath) throws IOException {
-        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(filePath))) {
+    @Override
+    public void saveState(String filePath) {
+        String actualPath = getSaveFilePath(filePath);
+
+        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(actualPath))) {
+
             out.writeObject(this);
+
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Failed to save system state: " + e.getMessage(),
+                    e
+            );
         }
     }
 
+    @Override
+    public void loadState(String filePath) {
+        filePath = getSaveFilePath(filePath);
 
+        File saveFile = new File(filePath);
+
+        if (!saveFile.exists()) {
+            throw new IllegalArgumentException(
+                    "Save file does not exist: " + filePath
+            );
+        }
+
+        try (ObjectInputStream in =
+                     new ObjectInputStream(new FileInputStream(filePath))) {
+
+            GuessMarketEngine loadedEngine =
+                    (GuessMarketEngine) in.readObject();
+
+            eventsById.clear();
+            eventsById.putAll(loadedEngine.eventsById);
+
+        } catch (IOException | ClassNotFoundException e) {
+            throw new IllegalStateException(
+                    "Failed to load system state: " + e.getMessage(),
+                    e
+            );
+        }
+    }
 
     @Override
     public void loadMarketFromXml(String xmlFilePath) {
@@ -110,6 +147,16 @@ public class GuessMarketEngine implements Engine, Serializable {
         if (requestedEvent == null) {
             throw new IllegalArgumentException("No event exists with id: " + eventId);
         }
+    }
+
+    private String getSaveFilePath(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Save file path cannot be empty."
+            );
+        }
+
+        return filePath + ".sav";
     }
 
     @Override
