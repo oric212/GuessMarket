@@ -1,5 +1,6 @@
 package guessmarket.engine.domain;
 
+import java.io.Serializable;
 import java.util.List;
 
 record EventXmlData(
@@ -10,5 +11,5 @@ record EventXmlData(
         String commissionMethod,
         List<String> options,
         TradingMethodXmlData tradingMethod
-) {
+) implements Serializable {
 }

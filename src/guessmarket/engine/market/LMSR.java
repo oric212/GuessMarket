@@ -1,10 +1,11 @@
 package guessmarket.engine.market;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class LMSR implements TradingMethod {
+public final class LMSR implements TradingMethod, Serializable {
     private final int liquidityParameter;
     private final List<Option> options;
     private final Map<Option, Integer> quantitiesByOption;

@@ -1,6 +1,8 @@
 package guessmarket.engine.market;
 
-public final class Option {
+import java.io.Serializable;
+
+public final class Option implements Serializable {
     private final String name;
 
     public Option(String name) {

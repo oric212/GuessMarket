@@ -8,6 +8,7 @@ import guessmarket.dto.TradeDTO;
 import guessmarket.engine.domain.Engine;
 import guessmarket.engine.domain.GuessMarketEngine;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Scanner;
 
@@ -18,7 +19,7 @@ public class UiConsole implements Ui {
     private String errorMessage;
 
     private final Scanner scanner;
-    private final Engine engine;
+    private Engine engine;
 
     public UiConsole() {
         this.engine = new GuessMarketEngine();
@@ -32,6 +33,8 @@ public class UiConsole implements Ui {
                 case START_MAIN_MENU -> handleStartMenu();
                 case LOADED_MAIN_MENU -> handleLoadedMainMenu();
                 case MARKET_ACTIONS -> handleMarketActions();
+                case LOAD_FILE -> handleLoadState();
+                case SAVE_FILE -> handleSaveState();
                 case ERROR_SCREEN -> handleErrorScreen();
                 case EXIT -> {
                     // Loop ends.
@@ -40,17 +43,47 @@ public class UiConsole implements Ui {
         }
     }
 
+    private void handleSaveState() {
+        System.out.print("Enter file path to save: ");
+        String filePath = scanner.nextLine().trim();
+        try {
+            engine.saveState(filePath);
+            currentState = UiState.LOADED_MAIN_MENU;
+        } catch (IOException e) {
+            moveToErrorScreen(e.getMessage());
+        }
+    }
+
+    private void handleLoadState() {
+        System.out.print("Enter file path to load: ");
+        String filePath = scanner.nextLine().trim();
+        try {
+            this.engine = Engine.loadState(filePath);
+            currentState = UiState.LOADED_MAIN_MENU;
+        } catch (IOException | ClassNotFoundException e) {
+            moveToErrorScreen(e.getMessage());
+        }
+    }
+
     private void handleStartMenu() {
         printStartMenu();
 
         String userInput = scanner.nextLine().trim();
-
-        try {
-            engine.loadMarketFromXml(userInput);
-            currentState = UiState.LOADED_MAIN_MENU;
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            moveToErrorScreen(e.getMessage());
+        switch (userInput) {
+            case "1" -> {
+                printXMLLoad();
+                userInput = scanner.nextLine().trim();
+                try {
+                    engine.loadMarketFromXml(userInput);
+                    currentState = UiState.LOADED_MAIN_MENU;
+                } catch (IllegalArgumentException | IllegalStateException e) {
+                    moveToErrorScreen(e.getMessage());
+                }
+            }
+            case "2" -> currentState = UiState.LOAD_FILE;
+            default -> moveToErrorScreen("Invalid menu option.");
         }
+
     }
 
     private void handleLoadedMainMenu() {
@@ -62,6 +95,8 @@ public class UiConsole implements Ui {
             case "0" -> currentState = UiState.EXIT;
             case "1" -> currentState = UiState.MARKET_ACTIONS;
             case "2" -> currentState = UiState.START_MAIN_MENU;
+            case "3" -> currentState = UiState.LOAD_FILE;
+            case "4" -> currentState = UiState.SAVE_FILE;
             default -> moveToErrorScreen("Invalid menu option.");
         }
     }
@@ -252,6 +287,13 @@ public class UiConsole implements Ui {
     private void printStartMenu() {
         System.out.println();
         System.out.println("=== GUESS MARKET ===");
+        System.out.println("1. Enter the full XML file path:");
+        System.out.println("2. Load State from File");
+
+    }
+    private void printXMLLoad() {
+        System.out.println();
+        System.out.println("=== GUESS MARKET ===");
         System.out.println("Enter the full XML file path:");
     }
 
@@ -260,6 +302,8 @@ public class UiConsole implements Ui {
         System.out.println("=== MAIN MENU ===");
         System.out.println("1. Enter Market Actions");
         System.out.println("2. Load Another XML File");
+        System.out.println("3. Load State from File");
+        System.out.println("4. Save State to File");
         System.out.println("0. Exit");
     }
 
