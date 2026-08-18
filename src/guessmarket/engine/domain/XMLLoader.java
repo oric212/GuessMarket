@@ -44,8 +44,7 @@ public class XMLLoader {
             return (GuessMarket) unmarshaller.unmarshal(new File(path));
 
         } catch (JAXBException e) {
-
-            throw new RuntimeException("Failed to load XML file", e);
+            throw new IllegalArgumentException("XML file is malformed or does not match the required format.");
         }
     }
 

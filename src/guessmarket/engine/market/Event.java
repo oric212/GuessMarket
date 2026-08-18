@@ -208,12 +208,6 @@ public final class Event implements Serializable {
             );
         }
 
-        if (account.getBalance() < netPayout) {
-            throw new IllegalStateException(
-                    "Event account cannot fund the winning payout"
-            );
-        }
-
         account.withdraw(netPayout);
 
         totalCommissionCollected = updatedCommissionTotal;

@@ -8,7 +8,7 @@ import guessmarket.dto.TradeDTO;
 import guessmarket.engine.domain.Engine;
 import guessmarket.engine.domain.GuessMarketEngine;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
@@ -19,7 +19,7 @@ public class UiConsole implements Ui {
     private String errorMessage;
 
     private final Scanner scanner;
-    private Engine engine;
+    private final Engine engine;
 
     public UiConsole() {
         this.engine = new GuessMarketEngine();
@@ -33,8 +33,6 @@ public class UiConsole implements Ui {
                 case START_MAIN_MENU -> handleStartMenu();
                 case LOADED_MAIN_MENU -> handleLoadedMainMenu();
                 case MARKET_ACTIONS -> handleMarketActions();
-                case LOAD_FILE -> handleLoadState();
-                case SAVE_FILE -> handleSaveState();
                 case ERROR_SCREEN -> handleErrorScreen();
                 case EXIT -> {
                     // Loop ends.
@@ -43,47 +41,28 @@ public class UiConsole implements Ui {
         }
     }
 
-    private void handleSaveState() {
-        System.out.print("Enter file path to save: ");
-        String filePath = scanner.nextLine().trim();
-        try {
-            engine.saveState(filePath);
-            currentState = UiState.LOADED_MAIN_MENU;
-        } catch (IOException e) {
-            moveToErrorScreen(e.getMessage());
-        }
-    }
-
-    private void handleLoadState() {
-        System.out.print("Enter file path to load: ");
-        String filePath = scanner.nextLine().trim();
-        try {
-            this.engine = Engine.loadState(filePath);
-            currentState = UiState.LOADED_MAIN_MENU;
-        } catch (IOException | ClassNotFoundException e) {
-            moveToErrorScreen(e.getMessage());
-        }
-    }
-
     private void handleStartMenu() {
         printStartMenu();
 
         String userInput = scanner.nextLine().trim();
-        switch (userInput) {
-            case "1" -> {
-                printXMLLoad();
-                userInput = scanner.nextLine().trim();
-                try {
-                    engine.loadMarketFromXml(userInput);
-                    currentState = UiState.LOADED_MAIN_MENU;
-                } catch (IllegalArgumentException | IllegalStateException e) {
-                    moveToErrorScreen(e.getMessage());
-                }
-            }
-            case "2" -> currentState = UiState.LOAD_FILE;
-            default -> moveToErrorScreen("Invalid menu option.");
-        }
 
+        try {
+            engine.loadMarketFromXml(userInput);
+            currentState = UiState.LOADED_MAIN_MENU;
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            moveToErrorScreen(e.getMessage());
+        }
+    }
+
+    private void handleLoadXmlFile() {
+        System.out.println("Enter the full XML file path:");
+        String userInput = scanner.nextLine().trim();
+
+        try {
+            engine.loadMarketFromXml(userInput);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            moveToErrorScreen(e.getMessage());
+        }
     }
 
     private void handleLoadedMainMenu() {
@@ -92,11 +71,9 @@ public class UiConsole implements Ui {
         String userInput = scanner.nextLine().trim();
 
         switch (userInput) {
-            case "0" -> currentState = UiState.EXIT;
             case "1" -> currentState = UiState.MARKET_ACTIONS;
-            case "2" -> currentState = UiState.START_MAIN_MENU;
-            case "3" -> currentState = UiState.LOAD_FILE;
-            case "4" -> currentState = UiState.SAVE_FILE;
+            case "2" -> handleLoadXmlFile();
+            case "3" -> currentState = UiState.EXIT;
             default -> moveToErrorScreen("Invalid menu option.");
         }
     }
@@ -116,44 +93,62 @@ public class UiConsole implements Ui {
         }
     }
 
-    private void showEventSummaries() {
+    private List<EventDTO> showEventSummaries() {
         List<EventDTO> events = engine.getEventSummaries();
 
-        for (EventDTO event : events) {
-            printEventDTO(event);
+        for (int i = 0; i < events.size(); i++) {
+            System.out.println();
+            System.out.println("Event Number: " + (i + 1));
+            printEventDTO(events.get(i));
         }
 
-        System.out.println("\n");
+        System.out.println();
+
+        return events;
     }
 
-    private void showEventSummaries(String stateFilter) {
+    private List<EventDTO> showEventSummaries(String stateFilter) {
         List<EventDTO> events = engine.getEventSummaries();
-        boolean found = false;
+        List<EventDTO> matchingEvents = new ArrayList<>();
 
         for (EventDTO event : events) {
             if (event.eventState().equalsIgnoreCase(stateFilter)) {
+                matchingEvents.add(event);
+
+                System.out.println("\nEvent Number: " + matchingEvents.size());
                 printEventDTO(event);
-                found = true;
             }
         }
 
-        if (!found) {
+        if (matchingEvents.isEmpty()) {
             System.out.println("No matching events found.");
         }
 
-        System.out.println("\n");
+        System.out.println();
+
+        return matchingEvents;
     }
 
     private void showEventStateAction() {
         try {
-            System.out.println("Printing all system events:");
-            showEventSummaries();
+            System.out.println();
+            System.out.println("=== MARKET ACTIONS ===");
+            System.out.println("Show Event State\n");
 
-            System.out.println("Please enter an event ID:");
+            List<EventDTO> events = showEventSummaries();
 
-            int eventId = readEventId();
+            System.out.println("Please choose an event number:");
+
+            int choice = readEventId();
+
+            if (choice < 1 || choice > events.size()) {
+                throw new IllegalArgumentException("Invalid event choice.");
+            }
+
+            int eventId = events.get(choice - 1).id();
 
             showEventState(eventId);
+
         } catch (IllegalArgumentException | IllegalStateException e) {
             moveToErrorScreen(e.getMessage());
         }
@@ -204,13 +199,10 @@ public class UiConsole implements Ui {
         try {
             System.out.println();
             System.out.println("=== MARKET ACTIONS ===");
-            System.out.println("Participate in an event");
+            System.out.println("Participate in an event\n");
             System.out.println("Active events:");
 
-            showEventSummaries("ACTIVE");
-
-            System.out.println("Please enter an event ID:");
-            int eventId = readEventId();
+            int eventId = getEventChoiceFromUser();
 
             showEventState(eventId);
 
@@ -233,6 +225,19 @@ public class UiConsole implements Ui {
         }
     }
 
+    private int getEventChoiceFromUser() {
+        List<EventDTO> activeEvents = showEventSummaries("ACTIVE");
+
+        System.out.println("Please choose an event number:");
+        int choice = readEventId();
+
+        if (choice < 1 || choice > activeEvents.size()) {
+            throw new IllegalArgumentException("Invalid event choice.");
+        }
+
+        return activeEvents.get(choice - 1).id();
+    }
+
     private void closeEvent() {
         try {
             System.out.println();
@@ -240,11 +245,7 @@ public class UiConsole implements Ui {
             System.out.println("Close an event");
             System.out.println("Active events:");
 
-            showEventSummaries("ACTIVE");
-
-            System.out.println("Please enter an event ID:");
-            int eventId = readEventId();
-
+            int eventId = getEventChoiceFromUser();
             showEventState(eventId);
 
             System.out.println("Please enter the winning option number:");
@@ -287,13 +288,6 @@ public class UiConsole implements Ui {
     private void printStartMenu() {
         System.out.println();
         System.out.println("=== GUESS MARKET ===");
-        System.out.println("1. Enter the full XML file path:");
-        System.out.println("2. Load State from File");
-
-    }
-    private void printXMLLoad() {
-        System.out.println();
-        System.out.println("=== GUESS MARKET ===");
         System.out.println("Enter the full XML file path:");
     }
 
@@ -302,9 +296,7 @@ public class UiConsole implements Ui {
         System.out.println("=== MAIN MENU ===");
         System.out.println("1. Enter Market Actions");
         System.out.println("2. Load Another XML File");
-        System.out.println("3. Load State from File");
-        System.out.println("4. Save State to File");
-        System.out.println("0. Exit");
+        System.out.println("3. Exit");
     }
 
     private void printMarketActionsMenu() {
@@ -330,7 +322,6 @@ public class UiConsole implements Ui {
             return;
         }
 
-        System.out.println();
         System.out.println("Event ID: " + event.id());
         System.out.println("Event Name: " + event.eventName());
         System.out.println("Description: " + event.description());
@@ -386,9 +377,11 @@ public class UiConsole implements Ui {
         System.out.println();
         System.out.println("Option States:");
 
-        for (OptionStateDTO option : eventState.optionStateDTOList()) {
+        for (int i = 0; i < eventState.optionStateDTOList().size(); i++) {
+            OptionStateDTO option = eventState.optionStateDTOList().get(i);
             System.out.printf(
-                    "%s | Value: %.2f | Quantity: %d%n",
+                    "%d. %s | Value: %.2f | Quantity: %d%n",
+                    i + 1,
                     option.optionName(),
                     option.currentOptionValue(),
                     option.quantityBought()
