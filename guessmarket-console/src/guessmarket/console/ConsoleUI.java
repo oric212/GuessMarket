@@ -34,9 +34,6 @@ public class ConsoleUI implements UserInterface {
                 case LOADED_MAIN_MENU -> handleLoadedMainMenu();
                 case MARKET_ACTIONS -> handleMarketActions();
                 case ERROR_SCREEN -> handleErrorScreen();
-                case EXIT -> {
-                    // Loop ends.
-                }
             }
         }
     }
@@ -136,12 +133,17 @@ public class ConsoleUI implements UserInterface {
     }
 
     private List<EventDTO> showEventSummaries() {
+        printHeader("EVENTS");
+
         List<EventDTO> events = engine.getEventSummaries();
 
         for (int i = 0; i < events.size(); i++) {
-            System.out.println();
             System.out.println("Event Number: " + (i + 1));
             printEventDTO(events.get(i));
+
+            if (i < events.size() - 1) {
+                System.out.println();
+            }
         }
 
         System.out.println();
@@ -150,6 +152,8 @@ public class ConsoleUI implements UserInterface {
     }
 
     private List<EventDTO> showEventSummaries(String stateFilter) {
+        printHeader(stateFilter.toUpperCase() + " EVENTS");
+
         List<EventDTO> events = engine.getEventSummaries();
         List<EventDTO> matchingEvents = new ArrayList<>();
 
@@ -157,13 +161,14 @@ public class ConsoleUI implements UserInterface {
             if (event.eventState().equalsIgnoreCase(stateFilter)) {
                 matchingEvents.add(event);
 
-                System.out.println("\nEvent Number: " + matchingEvents.size());
+                System.out.println();
+                System.out.println("Event Number: " + matchingEvents.size());
                 printEventDTO(event);
             }
         }
 
         if (matchingEvents.isEmpty()) {
-            System.out.println("No matching events found.");
+            System.out.println("No " + stateFilter.toLowerCase() + " events found.");
         }
 
         System.out.println();
@@ -173,9 +178,7 @@ public class ConsoleUI implements UserInterface {
 
     private void showEventStateAction() {
         try {
-            System.out.println();
-            System.out.println("=== MARKET ACTIONS ===");
-            System.out.println("Show Event State\n");
+            printHeader("SHOW EVENT STATE");
 
             List<EventDTO> events = showEventSummaries();
 
@@ -239,10 +242,7 @@ public class ConsoleUI implements UserInterface {
 
     private void participateInEvent() {
         try {
-            System.out.println();
-            System.out.println("=== MARKET ACTIONS ===");
-            System.out.println("Participate in an event\n");
-            System.out.println("Active events:");
+            printHeader("PARTICIPATE IN EVENT");
 
             int eventId = getEventChoiceFromUser();
 
@@ -282,10 +282,7 @@ public class ConsoleUI implements UserInterface {
 
     private void closeEvent() {
         try {
-            System.out.println();
-            System.out.println("=== MARKET ACTIONS ===");
-            System.out.println("Close an event");
-            System.out.println("Active events:");
+            printHeader("CLOSE EVENT");
 
             int eventId = getEventChoiceFromUser();
             showEventState(eventId);
@@ -330,16 +327,14 @@ public class ConsoleUI implements UserInterface {
 
 
     private void printStartMenu() {
-        System.out.println();
-        System.out.println("=== GUESS MARKET ===");
+        printHeader("GUESS MARKET");
         System.out.println("1. Load XML File");
         System.out.println("2. Load Saved State");
         System.out.println("3. Exit");
     }
 
     private void printLoadedMainMenu() {
-        System.out.println();
-        System.out.println("=== MAIN MENU ===");
+        printHeader("MAIN MENU");
         System.out.println("1. Enter Market Actions");
         System.out.println("2. Load Another XML File");
         System.out.println("3. Save System State");
@@ -348,8 +343,7 @@ public class ConsoleUI implements UserInterface {
     }
 
     private void printMarketActionsMenu() {
-        System.out.println();
-        System.out.println("=== MARKET ACTIONS ===");
+        printHeader("MARKET ACTIONS");
         System.out.println("1. Return to Main Menu");
         System.out.println("2. Show Event State");
         System.out.println("3. Show Events");
@@ -360,8 +354,7 @@ public class ConsoleUI implements UserInterface {
     }
 
     private void printErrorScreen() {
-        System.out.println();
-        System.out.println("=== ERROR ===");
+        printHeader("ERROR");
         System.out.println(errorMessage);
         System.out.println();
         System.out.println("1. Return");
@@ -400,21 +393,19 @@ public class ConsoleUI implements UserInterface {
             return;
         }
 
-        System.out.println();
-        System.out.println(
-                "=== EVENT STATE [ID: " + eventState.id() + "] ==="
-        );
+        printHeader("EVENT STATE");
 
+        System.out.println("Event ID: " + eventState.id());
         System.out.println("Event Name: " + eventState.eventName());
         System.out.println("Status: " + eventState.eventState());
 
         System.out.printf(
-                "Current Account Balance: %.2f%n",
+                "Account Balance: %.2f%n",
                 eventState.currentEventAccountBalance()
         );
 
         System.out.printf(
-                "Total Commission Collected: %.2f%n",
+                "Commission Collected: %.2f%n",
                 eventState.totalCommissionCollected()
         );
 
@@ -425,12 +416,12 @@ public class ConsoleUI implements UserInterface {
         }
 
         System.out.println();
-        System.out.println("Option States:");
+        System.out.println("Options:");
 
         for (int i = 0; i < eventState.optionStateDTOList().size(); i++) {
             OptionStateDTO option = eventState.optionStateDTOList().get(i);
             System.out.printf(
-                    "%d. %s | Value: %.2f | Quantity: %d%n",
+                    "%d. %s | Value: %.2f | Shares Bought: %d%n",
                     i + 1,
                     option.optionName(),
                     option.currentOptionValue(),
@@ -446,14 +437,14 @@ public class ConsoleUI implements UserInterface {
         } else {
             for (TradeDTO trade : eventState.trades()) {
                 System.out.printf(
-                        "%s | Quantity: %d | Cost: %.2f%n",
+                        "%s | Shares: %d | Cost: %.2f%n",
                         trade.boughtOptionName(),
                         trade.quantity(),
                         trade.purchaseCost()
                 );
             }
         }
-        System.out.println("\n");
+        System.out.println();
     }
 
     private void printPurchaseResultDTO(
@@ -463,11 +454,9 @@ public class ConsoleUI implements UserInterface {
             return;
         }
 
-        System.out.println();
-        System.out.println("=== PURCHASE RESULT ===");
-
+        printHeader("PURCHASE RESULT");
         System.out.println(
-                "Event: " + purchaseResult.eventName()
+                "Event Name: " + purchaseResult.eventName()
         );
 
         System.out.printf(
@@ -484,6 +473,11 @@ public class ConsoleUI implements UserInterface {
                 "Total Paid: %.2f%n",
                 purchaseResult.totalPricePaid()
         );
-        System.out.println("\n");
+        System.out.println();
+    }
+
+    private void printHeader(String title) {
+        System.out.println();
+        System.out.println("=== " + title + " ===");
     }
 }
