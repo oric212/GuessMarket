@@ -127,6 +127,7 @@ public class UiConsole implements Ui {
             case "3" -> showEventSummaries();
             case "4" -> participateInEvent();
             case "5" -> closeEvent();
+            case "6" -> handleLoadXmlFile();
             default -> moveToErrorScreen("Invalid menu option.");
         }
     }
@@ -351,6 +352,7 @@ public class UiConsole implements Ui {
         System.out.println("3. Show Events");
         System.out.println("4. Participate in Event");
         System.out.println("5. Close Event");
+        System.out.println("6. Load Another XML File");
     }
 
     private void printErrorScreen() {
