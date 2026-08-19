@@ -1,0 +1,8 @@
+package guessmarket.domain;
+
+import java.io.Serializable;
+
+public enum CommissionMethod implements Serializable {
+    ON_PURCHASE,
+    ON_CLOSE
+}
