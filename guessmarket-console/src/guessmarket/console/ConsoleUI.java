@@ -61,6 +61,8 @@ public class ConsoleUI implements UserInterface {
         try {
             engine.loadMarketFromXml(filePath);
 
+            System.out.println("XML file loaded successfully.");
+
             if (currentState == ConsoleState.START_MAIN_MENU) {
                 currentState = ConsoleState.LOADED_MAIN_MENU;
             }
@@ -127,6 +129,8 @@ public class ConsoleUI implements UserInterface {
             case "3" -> showEventSummaries();
             case "4" -> participateInEvent();
             case "5" -> closeEvent();
+            case "6" -> handleLoadXmlFile();
+            case "7" -> currentState = ConsoleState.EXIT;
             default -> moveToErrorScreen("Invalid menu option.");
         }
     }
@@ -204,7 +208,7 @@ public class ConsoleUI implements UserInterface {
             return Integer.parseInt(input);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(
-                    "Event ID must be a valid integer."
+                    "Event number must be a valid integer."
             );
         }
     }
@@ -351,6 +355,8 @@ public class ConsoleUI implements UserInterface {
         System.out.println("3. Show Events");
         System.out.println("4. Participate in Event");
         System.out.println("5. Close Event");
+        System.out.println("6. Load Another XML File");
+        System.out.println("7. Exit");
     }
 
     private void printErrorScreen() {
