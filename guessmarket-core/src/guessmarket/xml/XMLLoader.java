@@ -1,17 +1,12 @@
 package guessmarket.xml;
 
-import guessmarket.jaxb.GMEvent;
-import guessmarket.jaxb.GMLMSR;
-import guessmarket.jaxb.GuessMarket;
+import guessmarket.jaxb.*;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Unmarshaller;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 
 public class XMLLoader {
@@ -72,8 +67,8 @@ public class XMLLoader {
                 event.getId(),
                 String.join(" ", event.getName()),
                 event.getDescription(),
-                event.getComision().getValue(),
-                event.getComision().getType(),
+                event.getCommission().getValue(),
+                event.getCommission().getType(),
                 options,
                 tradingMethod
         );
@@ -94,37 +89,149 @@ public class XMLLoader {
 
 
 
-    private void validateXmlFile(List<EventXmlData> events) {
-        Set<Integer> idSet = new HashSet<>();
+    private void validateXmlFile(List<EventXmlData> events, List<UserXmlData> users) {
+
+        validateEvents(events);
+        validateUsers(users);
+        validateMarketMakerAssignments(events, users);
+    }
+
+    private void validateEvents(List<EventXmlData> events) {
+        Set<Integer> eventIds = new HashSet<>();
 
         for (EventXmlData event : events) {
-            int id = event.id();
-
-            if (!idSet.add(id)) {
-                throw new IllegalArgumentException("XML file is not valid application-wise: duplicate event ID " + id);
+            if (!eventIds.add(event.id())) {
+                throw new IllegalArgumentException(
+                        "Duplicate event ID: " + event.id()
+                );
             }
 
-            int commission = event.commission();
-
-            if (commission < 0 || commission > 90) {
+            if (event.commission() < 0
+                    || event.commission() > 90) {
                 throw new IllegalArgumentException(
-                        "XML file is not valid application-wise: event " + id + " must have commission between 0 and 90.");
+                        "Commission percentage must be between 0 and 90 for event ID: "
+                                + event.id()
+                );
             }
 
             if (event.options().size() != 2) {
                 throw new IllegalArgumentException(
-                        "XML file is not valid application-wise: event " + id + " must contain exactly 2 options.");
+                        "Event ID " + event.id()
+                                + " must contain exactly 2 options"
+                );
             }
         }
     }
 
-    public List<EventXmlData> loadEventsFromXml(String path){
-        validatePath(path);
-        GuessMarket guessMarket = unmarshalWithJaxb(path);
-        List<EventXmlData> events = convertJaxbEvents(guessMarket);
-        validateXmlFile(events);
+    private void validateUsers(List<UserXmlData> users) {
+        Set<String> usernames = new HashSet<>();
 
-        return events;
+        for (UserXmlData user : users) {
+            if (user.username() == null || user.username().isBlank()) {
+                throw new IllegalArgumentException("Username cannot be blank"
+                );
+            }
+
+            String normalizedName =
+                    user.username().trim().toLowerCase(Locale.ROOT);
+
+            if (!usernames.add(normalizedName)) {
+                throw new IllegalArgumentException(
+                        "Duplicate username: " + user.username()
+                );
+            }
+
+            if (!Double.isFinite(user.initialCash()) || user.initialCash() <= 0) {
+                throw new IllegalArgumentException(
+                        "Initial cash must be greater than 0 for user: "
+                                + user.username()
+                );
+            }
+        }
+    }
+
+    private void validateMarketMakerAssignments(
+            List<EventXmlData> events,
+            List<UserXmlData> users) {
+
+        Set<Integer> eventIds = new HashSet<>();
+
+        for (EventXmlData event : events) {
+            eventIds.add(event.id());
+        }
+
+        Set<Integer> eventIdsWithMarketMaker = new HashSet<>();
+
+        for (UserXmlData user : users) {
+            for (Integer eventId : user.marketMakerEventIds()) {
+
+                if (!eventIds.contains(eventId)) {
+                    throw new IllegalArgumentException(
+                            "Market Maker references non-existing event ID: "
+                                    + eventId
+                    );
+                }
+
+                if (!eventIdsWithMarketMaker.add(eventId)) {
+                    throw new IllegalArgumentException(
+                            "Event " + eventId
+                                    + " has more than one Market Maker"
+                    );
+                }
+            }
+        }
+
+        for (Integer eventId : eventIds) {
+            if (!eventIdsWithMarketMaker.contains(eventId)) {
+                throw new IllegalArgumentException(
+                        "Event " + eventId
+                                + " does not have a Market Maker"
+                );
+            }
+        }
+    }
+
+
+
+    public MarketXmlData loadMarketFromXml(String path) {
+        validatePath(path);
+
+        GuessMarket guessMarket = unmarshalWithJaxb(path);
+
+        List<EventXmlData> events = convertJaxbEvents(guessMarket);
+        List<UserXmlData> users = convertJaxbUsers(guessMarket);
+
+        validateXmlFile(events, users);
+
+        return new MarketXmlData(events, users);
+    }
+
+    private List<UserXmlData> convertJaxbUsers(GuessMarket guessMarket) {
+        List<UserXmlData> users = new ArrayList<>();
+
+        for (GMUser user : guessMarket.getGMUsers().getGMUser()){
+            users.add(convertUser(user));
+        }
+
+        return users;
+    }
+
+    private UserXmlData convertUser(GMUser user){
+        List<Integer> marketMakerEventIds = new ArrayList<>();
+
+        for (Event event : user.getGMMarketMaker().getEvent()) {
+            marketMakerEventIds.add(event.getId());
+        }
+
+        String username = user.getName();
+        double initialCash = user.getInitialCash();
+
+        return new UserXmlData(
+                username,
+                initialCash,
+                marketMakerEventIds
+                );
+
     }
 
 

@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class LMSR implements TradingMethod, Serializable {
+public final class LMSR implements TradingMethod {
     private final int liquidityParameter;
     private final List<Option> options;
     private final Map<Option, Integer> quantitiesByOption;
@@ -128,4 +128,8 @@ public final class LMSR implements TradingMethod, Serializable {
         return quantitiesByOption.get(option);
     }
 
+    @Override
+    public TradingMethodType getType() {
+        return TradingMethodType.LMSR;
+    }
 }

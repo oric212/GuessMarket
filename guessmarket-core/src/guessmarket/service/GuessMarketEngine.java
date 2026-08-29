@@ -13,7 +13,8 @@ import java.util.*;
 public class GuessMarketEngine implements Engine, Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
-    private Map<Integer, Event> eventsById = new LinkedHashMap<>();
+    private final Map<Integer, Event> eventsById = new LinkedHashMap<>();
+    private final Map<String, User> usersByName = new LinkedHashMap<>();
 
     @Override
     public void saveState(String filePath) {
@@ -63,10 +64,17 @@ public class GuessMarketEngine implements Engine, Serializable {
     @Override
     public void loadMarketFromXml(String xmlFilePath) {
         XMLLoader xmlLoader = new XMLLoader();
-        List<EventXmlData> eventXmlData = xmlLoader.loadEventsFromXml(xmlFilePath);
-        Map<Integer, Event> newEvents = createEvents(eventXmlData);
+        MarketXmlData marketXmlData  = xmlLoader.loadMarketFromXml(xmlFilePath);
 
-        eventsById = newEvents;
+        Map<String, User> newUsers = createUsers(marketXmlData.users());
+        Map<Integer, User> marketMakerById = createMarketMakerAssignments(marketXmlData.users(),newUsers);
+        Map<Integer, Event> newEvents = createEvents(marketXmlData.events(),marketMakerById);
+
+        usersByName.clear();
+        usersByName.putAll(newUsers);
+
+        eventsById.clear();
+        eventsById.putAll(newEvents);
     }
 
     @Override
@@ -136,8 +144,8 @@ public class GuessMarketEngine implements Engine, Serializable {
         for (Option option : requestedEvent.getOptions()) {
             OptionStateDTO optionStateDTO = new OptionStateDTO(
                     option.getName(),
-                    requestedEvent.getOptionPrice(option),
-                    requestedEvent.getQuantityBought(option)
+                    requestedEvent.getLmsrOptionPrice(option),
+                    requestedEvent.getLmsrQuantityBought(option)
             );
 
             optionStateDTOs.add(optionStateDTO);
@@ -168,7 +176,7 @@ public class GuessMarketEngine implements Engine, Serializable {
         validateEvent(eventId, requestedEvent);
 
         Option option = requestedEvent.getOptionByChoice(optionChoice);
-        Trade trade = requestedEvent.purchase(option,quantity);
+        Trade trade = requestedEvent.purchaseLmsrShares(option,quantity);
 
         return new PurchaseResultDTO(
                 requestedEvent.getId(),
@@ -192,40 +200,118 @@ public class GuessMarketEngine implements Engine, Serializable {
         return getEventState(eventId);
     }
 
-    private Map<Integer, Event> createEvents(List<EventXmlData> eventXmlData){
+    private Map<Integer, Event> createEvents(
+            List<EventXmlData> eventsData,
+            Map<Integer, User> marketMakersByEventId) {
 
         Map<Integer, Event> events = new LinkedHashMap<>();
 
-        for (EventXmlData e:eventXmlData) {
+        for (EventXmlData eventData : eventsData) {
+            int id = eventData.id();
 
-            int id = e.id();
-            int commissionPercentage = e.commission();
-            CommissionMethod commissionMethod = createCommissionMethod(e.commissionMethod());
-            List<Option> options = createOptions(e.options());
-            LMSR tradingMethod = createTradingMethod(e.tradingMethod(),options);
-            double initialSubsidy = tradingMethod.calculateInitialSubsidy();
-            Account account = new Account(initialSubsidy);
+            CommissionMethod commissionMethod =
+                    createCommissionMethod(eventData.commissionMethod());
 
-            Event event = new Event(id,e.name(),e.description(),commissionPercentage,commissionMethod,tradingMethod,account);
-            events.put(event.getId(),event);
+            List<Option> options =
+                    createOptions(eventData.options());
 
+            TradingMethod tradingMethod =
+                    createTradingMethod(
+                            eventData.tradingMethod(),
+                            options
+                    );
+
+            User marketMaker =
+                    marketMakersByEventId.get(id);
+
+            if (marketMaker == null) {
+                throw new IllegalStateException(
+                        "Event " + id + " does not have a Market Maker"
+                );
+            }
+
+            Account eventAccount = new Account(0);
+
+            Event event = new Event(
+                    id,
+                    eventData.name(),
+                    eventData.description(),
+                    eventData.commission(),
+                    commissionMethod,
+                    options,
+                    tradingMethod,
+                    eventAccount,
+                    marketMaker
+            );
+
+            events.put(id, event);
         }
 
         return events;
     }
 
 
+    private Map<String, User> createUsers(List<UserXmlData> usersData) {
+        Map<String, User> users = new LinkedHashMap<>();
 
-    private LMSR createTradingMethod(TradingMethodXmlData tradingMethodXmlData, List<Option> options) {
-        switch (tradingMethodXmlData) {
-            case LmsrXmlData(int liquidityParameter):
-                return new LMSR(liquidityParameter, options);
+        for (UserXmlData userData : usersData) {
+            String username = userData.username();
+            String key = normalizeUsername(username);
 
-            default:
+            if (users.containsKey(key)) {
                 throw new IllegalArgumentException(
-                        "Unsupported trading method XML data: " + tradingMethodXmlData.getClass().getSimpleName()
+                        "Duplicate username: " + username
                 );
+            }
+
+            User user = new User(username, userData.initialCash());
+            users.put(key, user);
         }
+
+        return users;
+    }
+
+    private String normalizeUsername(String username) {
+        return username.trim().toLowerCase(Locale.ROOT);
+    }
+
+
+
+    private TradingMethod createTradingMethod(
+            TradingMethodXmlData methodData,
+            List<Option> options) {
+
+        return switch (methodData) {
+            case LmsrXmlData lmsr ->
+                    new LMSR(lmsr.liquidityParameter(), options);
+
+            case OrderBookXmlData orderBook ->
+                    new OrderBook(
+                            orderBook.allowMint(),
+                            orderBook.initial(),
+                            orderBook.d(),
+                            options
+                    );
+        };
+    }
+
+    private Map<Integer, User> createMarketMakerAssignments(
+            List<UserXmlData> usersData,
+            Map<String, User> usersByName) {
+
+        Map<Integer, User> marketMakersByEventId = new HashMap<>();
+
+        for (UserXmlData userData : usersData) {
+            User user = usersByName.get(
+                    normalizeUsername(userData.username())
+            );
+
+            for (Integer eventId : userData.marketMakerEventIds()) {
+                marketMakersByEventId.put(eventId, user);
+            }
+        }
+
+        return marketMakersByEventId;
     }
 
 

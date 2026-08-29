@@ -1,4 +1,5 @@
 package guessmarket.xml;
 
-public interface TradingMethodXmlData {
+public sealed interface TradingMethodXmlData
+        permits LmsrXmlData, OrderBookXmlData {
 }

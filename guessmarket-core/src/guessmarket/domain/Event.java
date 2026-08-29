@@ -12,9 +12,10 @@ public final class Event implements Serializable {
     private final int commissionPercentage;
     private final CommissionMethod commissionMethod;
     private final List<Option> options;
-    private final LMSR tradingMethod;
+    private final TradingMethod tradingMethod;
     private final Account account;
     private final List<Trade> tradeHistory;
+    private User marketMaker;
 
     private EventState state;
     private Option winningOption;
@@ -26,8 +27,12 @@ public final class Event implements Serializable {
             String description,
             int commissionPercentage,
             CommissionMethod commissionMethod,
-            LMSR tradingMethod,
-            Account account) {
+            List<Option> options,
+            TradingMethod tradingMethod,
+            Account account,
+            User marketMaker
+            ) {
+
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException(
                     "Event name cannot be null or blank"
@@ -52,6 +57,12 @@ public final class Event implements Serializable {
             );
         }
 
+        if (options == null) {
+            throw new IllegalArgumentException(
+                    "Event options cannot be null"
+            );
+        }
+
         if (tradingMethod == null) {
             throw new IllegalArgumentException(
                     "Trading method cannot be null"
@@ -64,11 +75,17 @@ public final class Event implements Serializable {
             );
         }
 
-        List<Option> eventOptions = List.copyOf(tradingMethod.getOptions());
+        if (marketMaker == null) {
+            throw new IllegalArgumentException(
+                    "Market Maker cannot be null"
+            );
+        }
+
+        List<Option> eventOptions = List.copyOf(options);
 
         if (eventOptions.size() != 2) {
             throw new IllegalArgumentException(
-                    "An Ex01 event must contain exactly two options"
+                    "An event must contain exactly two options"
             );
         }
 
@@ -86,6 +103,7 @@ public final class Event implements Serializable {
         this.options = eventOptions;
         this.tradingMethod = tradingMethod;
         this.account = account;
+        this.marketMaker = marketMaker;
         this.tradeHistory = new ArrayList<>();
         this.state = EventState.NOT_STARTED;
     }
@@ -136,12 +154,19 @@ public final class Event implements Serializable {
         transitionTo(EventState.ACTIVE);
     }
 
-    public Trade purchase(Option option, int quantity) {
+    public Trade purchaseLmsrShares(Option option, int quantity) {
         validateTradingAllowed();
         validateOption(option);
         validateQuantity(quantity);
 
-        double purchaseCost = tradingMethod.calculatePurchaseCost(option, quantity);
+        if (!(tradingMethod instanceof LMSR lmsr)) {
+            throw new IllegalStateException(
+                    "This operation is only supported for LMSR events"
+            );
+        }
+
+        double purchaseCost =
+                lmsr.calculatePurchaseCost(option, quantity);
 
         if (!Double.isFinite(purchaseCost) || purchaseCost <= 0.0) {
             throw new IllegalStateException(
@@ -152,7 +177,8 @@ public final class Event implements Serializable {
         double commissionPaid = 0.0;
 
         if (commissionMethod == CommissionMethod.ON_PURCHASE) {
-            commissionPaid = purchaseCost * commissionPercentage / 100.0;
+            commissionPaid =
+                    purchaseCost * commissionPercentage / 100.0;
         }
 
         double totalPayment = purchaseCost + commissionPaid;
@@ -174,7 +200,7 @@ public final class Event implements Serializable {
         );
 
         account.deposit(totalPayment);
-        tradingMethod.recordPurchase(option, quantity);
+        lmsr.recordPurchase(option, quantity);
         tradeHistory.add(trade);
         totalCommissionCollected = updatedCommissionTotal;
 
@@ -242,14 +268,29 @@ public final class Event implements Serializable {
         }
     }
 
-    public int getQuantityBought(Option option) {
+    public int getLmsrQuantityBought(Option option) {
         validateOption(option);
-        return tradingMethod.getQuantityBought(option);
+
+        LMSR lmsr = getLmsr();
+
+        return lmsr.getQuantityBought(option);
     }
 
-    public double getOptionPrice(Option option) {
+    private LMSR getLmsr() {
+        if (!(tradingMethod instanceof LMSR lmsr)) {
+            throw new IllegalStateException(
+                    "Quantity bought is only available for LMSR events"
+            );
+        }
+        return lmsr;
+    }
+
+    public double getLmsrOptionPrice(Option option) {
         validateOption(option);
-        return tradingMethod.calculateCurrentValue(option);
+
+        LMSR lmsr = getLmsr();
+
+        return lmsr.calculateCurrentValue(option);
     }
 
     public Option getOptionByChoice(int optionChoice) {
