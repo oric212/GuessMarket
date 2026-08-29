@@ -1,0 +1,33 @@
+.root {
+    -fx-font-family: "Segoe UI", sans-serif;
+    -fx-font-size: 13px;
+}
+
+.app-header {
+    -fx-background-color: #eef3f8;
+    -fx-border-color: transparent transparent #cbd5e1 transparent;
+}
+
+.app-title {
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #16324f;
+}
+
+.section-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #16324f;
+}
+
+.result-message {
+    -fx-text-fill: #176b3a;
+}
+
+.error-message {
+    -fx-text-fill: #a32626;
+}
+
+.split-pane {
+    -fx-box-border: transparent;
+}

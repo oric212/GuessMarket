@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/GuessMarket.iml" filepath="$PROJECT_DIR$/GuessMarket.iml" />
+      <module fileurl="file://$PROJECT_DIR$/guessmarket-console/guessmarket-console.iml" filepath="$PROJECT_DIR$/guessmarket-console/guessmarket-console.iml" />
+      <module fileurl="file://$PROJECT_DIR$/guessmarket-core/guessmarket-core.iml" filepath="$PROJECT_DIR$/guessmarket-core/guessmarket-core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/guessmarket-javafx/guessmarket-javafx.iml" filepath="$PROJECT_DIR$/guessmarket-javafx/guessmarket-javafx.iml" />
+    </modules>
+  </component>
+</project>
