@@ -87,7 +87,7 @@ public final class Event implements Serializable {
         this.tradingMethod = tradingMethod;
         this.account = account;
         this.tradeHistory = new ArrayList<>();
-        this.state = EventState.ACTIVE;
+        this.state = EventState.NOT_STARTED;
     }
 
     public int getId() {
@@ -110,9 +110,7 @@ public final class Event implements Serializable {
         return commissionMethod;
     }
 
-    public EventState getState() {
-        return state;
-    }
+    public EventState getState() {return state;}
 
     public double getAccountBalance() {
         return account.getBalance();
@@ -134,8 +132,12 @@ public final class Event implements Serializable {
         return List.copyOf(tradeHistory);
     }
 
+    public void start() {
+        transitionTo(EventState.ACTIVE);
+    }
+
     public Trade purchase(Option option, int quantity) {
-        validateEventIsActive();
+        validateTradingAllowed();
         validateOption(option);
         validateQuantity(quantity);
 
@@ -180,7 +182,7 @@ public final class Event implements Serializable {
     }
 
     public void close(Option winningOption) {
-        validateEventIsActive();
+        validateTradingAllowed();
         validateOption(winningOption);
 
         double grossPayout = 0.0;
@@ -212,7 +214,8 @@ public final class Event implements Serializable {
 
         totalCommissionCollected = updatedCommissionTotal;
         this.winningOption = winningOption;
-        state = EventState.CLOSED;
+
+        transitionTo(EventState.CLOSED);
     }
 
     private void validateOption(Option option) {
@@ -231,11 +234,10 @@ public final class Event implements Serializable {
         }
     }
 
-    private void validateEventIsActive() {
-
-        if (state != EventState.ACTIVE) {
+    private void validateTradingAllowed() {
+        if (!state.allowsTrading()) {
             throw new IllegalStateException(
-                    "Event must be active to perform this operation"
+                    "Event must be active to perform trading operations"
             );
         }
     }
@@ -258,5 +260,12 @@ public final class Event implements Serializable {
         }
 
         return options.get(optionChoice - 1);
+    }
+
+    private void transitionTo(EventState nextState){
+        if(!state.canTransitionTo(nextState)) {
+            throw new IllegalStateException("Cannot transition event from " + state + " to " + nextState);
+        }
+        state = nextState;
     }
 }
