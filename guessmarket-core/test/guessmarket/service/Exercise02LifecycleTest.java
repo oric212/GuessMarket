@@ -41,8 +41,8 @@ public final class Exercise02LifecycleTest {
         check(poor.getEventState(1).eventState().equals("NOT_STARTED"), "Failed startup changed state");
 
         GuessMarketEngine orderBook = engine(orderBookMarket());
-        expectFailure(() -> orderBook.startEvent("MM", 1), "Order Book startup is not implemented");
-        check(orderBook.getEventState(1).eventState().equals("NOT_STARTED"), "OB rejection changed state");
+        orderBook.startEvent("MM", 1);
+        check(orderBook.getEventState(1).eventState().equals("ACTIVE"), "OB event did not start");
     }
 
     private static void purchasesMoneyFlowAndIndependentParticipation() throws Exception {

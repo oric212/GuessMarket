@@ -63,4 +63,14 @@ public final class User implements Serializable {
     boolean canReceive(double amount) {
         return userAccount.canDeposit(amount);
     }
+
+    boolean canApplyBalanceChange(double change) {
+        return Double.isFinite(change)
+                && Double.isFinite(userAccount.getBalance() + change);
+    }
+
+    void applyBalanceChange(double change) {
+        if (change > 0.0) deposit(change);
+        else if (change < 0.0) withdraw(-change);
+    }
 }

@@ -156,14 +156,20 @@ public class GuessMarketEngine implements Engine, Serializable {
 
     private UserParticipationDTO createParticipationDTO(Event event, UserParticipation participation) {
         Map<String, Integer> holdings = new LinkedHashMap<>();
+        Map<String, Integer> reserved = new LinkedHashMap<>();
+        Map<String, Integer> available = new LinkedHashMap<>();
         for (Option option : event.getOptions()) {
             holdings.put(option.getName(), participation.getQuantity(option));
+            reserved.put(option.getName(), participation.getReservedSellQuantity(option));
+            available.put(option.getName(), participation.getAvailableToSell(option));
         }
         List<TradeDTO> trades = participation.getTrades().stream()
                 .map(this::createTradeDTO)
                 .toList();
         return new UserParticipationDTO(
-                event.getId(), holdings, trades, participation.getTotalCommissionPaid());
+                event.getId(), holdings, reserved, available, trades,
+                participation.getTotalCommissionPaid(), participation.getTotalCashPaid(),
+                participation.getTotalCashReceived());
     }
 
     private TradeDTO createTradeDTO(Trade trade) {
@@ -358,6 +364,31 @@ public class GuessMarketEngine implements Engine, Serializable {
 
     private String normalizeUsername(String username) {
         return username.trim().toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    public OrderSubmissionResultDTO submitOrder(
+            String username, int eventId, int optionChoice,
+            OrderSide side, int quantity, double pricePerShare) {
+        User user = requireUser(username);
+        Event event = requireEvent(eventId);
+        Option option = event.getOptionByChoice(optionChoice);
+        OrderMatchResult result = event.submitOrder(user, option, side, quantity, pricePerShare);
+        List<OrderExecutionDTO> executions = result.executions().stream()
+                .map(item -> new OrderExecutionDTO(
+                        item.buyer().getUsername(), item.seller().getUsername(),
+                        item.option().getName(), item.quantity(), item.executionPrice()))
+                .toList();
+        List<MintExecutionDTO> mints = result.mintExecutions().stream()
+                .map(item -> new MintExecutionDTO(
+                        item.restingBuyer().getUsername(), item.incomingBuyer().getUsername(),
+                        item.restingOption().getName(), item.incomingOption().getName(),
+                        item.quantity(), item.restingExecutionPrice(), item.incomingExecutionPrice()))
+                .toList();
+        Order submitted = result.submittedOrder();
+        return new OrderSubmissionResultDTO(
+                eventId, option.getName(), side.name(), submitted.getOriginalQuantity(),
+                submitted.getRemainingQuantity(), submitted.getPricePerShare(), executions, mints);
     }
 
     private User requireUser(String username) {
