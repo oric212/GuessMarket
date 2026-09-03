@@ -21,12 +21,14 @@ public final class MainController {
     private final ProgressIndicator progress = new ProgressIndicator();
     private final Button loadButton = new Button("Load File");
     private final EventsController eventsController;
+    private final UsersController usersController;
     private final TabPane navigation = new TabPane();
 
     public MainController(Engine engine, Stage owner) {
         this.engine = engine;
         this.owner = owner;
         this.eventsController = new EventsController(engine);
+        this.usersController = new UsersController(engine);
         buildView();
     }
 
@@ -39,7 +41,7 @@ public final class MainController {
         root.setTop(buildHeader());
 
         Tab eventsTab = new Tab("Events", eventsController.getView());
-        Tab usersTab = new Tab("Users", new UsersController().getView());
+        Tab usersTab = new Tab("Users", usersController.getView());
         eventsTab.setClosable(false);
         usersTab.setClosable(false);
         navigation.getTabs().setAll(eventsTab, usersTab);
@@ -102,6 +104,7 @@ public final class MainController {
             pathLabel.getTooltip().setText(file.getAbsolutePath());
             statusLabel.setText("Market loaded successfully.");
             eventsController.refreshEvents();
+            usersController.refreshUsers();
         });
         loadTask.setOnFailed(event -> {
             finishLoading();

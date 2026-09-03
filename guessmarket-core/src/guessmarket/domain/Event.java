@@ -130,6 +130,14 @@ public final class Event implements Serializable {
 
     public EventState getState() {return state;}
 
+    public TradingMethodType getTradingMethodType() {
+        return tradingMethod.getType();
+    }
+
+    public boolean hasMarketMaker(User user) {
+        return marketMaker == user;
+    }
+
     public double getAccountBalance() {
         return account.getBalance();
     }

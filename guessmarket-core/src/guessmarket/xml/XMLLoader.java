@@ -75,8 +75,21 @@ public class XMLLoader {
     }
 
     private TradingMethodXmlData convertTradingMethod(GMEvent event) {
+        if (event.getGMMethod() == null) {
+            throw new IllegalArgumentException("Event must define a trading method");
+        }
+
         if (event.getGMMethod().getGMLMSR() != null) {
             return convertLmsr(event.getGMMethod().getGMLMSR());
+        }
+
+        if (event.getGMMethod().getGMOrderBook() != null) {
+            GMOrderBook orderBook = event.getGMMethod().getGMOrderBook();
+            return new OrderBookXmlData(
+                    Boolean.parseBoolean(orderBook.getAllowMint()),
+                    orderBook.getInitial(),
+                    orderBook.getD()
+            );
         }
 
         throw new IllegalArgumentException("Unsupported trading method");
@@ -209,6 +222,10 @@ public class XMLLoader {
     private List<UserXmlData> convertJaxbUsers(GuessMarket guessMarket) {
         List<UserXmlData> users = new ArrayList<>();
 
+        if (guessMarket.getGMUsers() == null) {
+            throw new IllegalArgumentException("XML must contain GM-users");
+        }
+
         for (GMUser user : guessMarket.getGMUsers().getGMUser()){
             users.add(convertUser(user));
         }
@@ -219,8 +236,10 @@ public class XMLLoader {
     private UserXmlData convertUser(GMUser user){
         List<Integer> marketMakerEventIds = new ArrayList<>();
 
-        for (Event event : user.getGMMarketMaker().getEvent()) {
-            marketMakerEventIds.add(event.getId());
+        if (user.getGMMarketMaker() != null) {
+            for (Event event : user.getGMMarketMaker().getEvent()) {
+                marketMakerEventIds.add(event.getId());
+            }
         }
 
         String username = user.getName();

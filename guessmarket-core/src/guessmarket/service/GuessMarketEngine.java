@@ -47,11 +47,19 @@ public class GuessMarketEngine implements Engine, Serializable {
         try (ObjectInputStream in =
                      new ObjectInputStream(new FileInputStream(filePath))) {
 
-            GuessMarketEngine loadedEngine =
-                    (GuessMarketEngine) in.readObject();
+            Object loaded = in.readObject();
+            if (!(loaded instanceof GuessMarketEngine loadedEngine)) {
+                throw new IllegalArgumentException("Save file does not contain a GuessMarket state");
+            }
 
+            Map<String, User> loadedUsers = copyAndValidateUsers(loadedEngine.usersByName);
+            Map<Integer, Event> loadedEvents = copyAndValidateEvents(
+                    loadedEngine.eventsById, loadedUsers.values());
+
+            usersByName.clear();
+            usersByName.putAll(loadedUsers);
             eventsById.clear();
-            eventsById.putAll(loadedEngine.eventsById);
+            eventsById.putAll(loadedEvents);
 
         } catch (IOException | ClassNotFoundException e) {
             throw new IllegalStateException(
@@ -100,6 +108,45 @@ public class GuessMarketEngine implements Engine, Serializable {
     }
 
     @Override
+    public List<UserDTO> getUsers() {
+        List<UserDTO> users = new ArrayList<>();
+
+        for (User user : usersByName.values()) {
+            users.add(createUserDTO(user));
+        }
+
+        return List.copyOf(users);
+    }
+
+    @Override
+    public UserDTO getUser(String username) {
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("Username cannot be blank");
+        }
+
+        User user = usersByName.get(normalizeUsername(username));
+        if (user == null) {
+            throw new IllegalArgumentException("No user exists with username: " + username.trim());
+        }
+
+        return createUserDTO(user);
+    }
+
+    private UserDTO createUserDTO(User user) {
+        List<Integer> marketMakerEventIds = eventsById.values().stream()
+                .filter(event -> event.hasMarketMaker(user))
+                .map(Event::getId)
+                .toList();
+
+        return new UserDTO(
+                user.getUsername(),
+                user.getAccountBalance(),
+                user.isBlocked(),
+                marketMakerEventIds
+        );
+    }
+
+    @Override
     public EventStateDTO getEventState(int eventId) {
         Event requestedEvent = eventsById.get(eventId);
 
@@ -140,6 +187,10 @@ public class GuessMarketEngine implements Engine, Serializable {
 
     private List<OptionStateDTO> createOptionStateDtoList(Event requestedEvent) {
         List<OptionStateDTO> optionStateDTOs = new ArrayList<>();
+
+        if (requestedEvent.getTradingMethodType() != TradingMethodType.LMSR) {
+            return List.of();
+        }
 
         for (Option option : requestedEvent.getOptions()) {
             OptionStateDTO optionStateDTO = new OptionStateDTO(
@@ -273,6 +324,44 @@ public class GuessMarketEngine implements Engine, Serializable {
 
     private String normalizeUsername(String username) {
         return username.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private Map<String, User> copyAndValidateUsers(Map<String, User> loadedUsers) {
+        if (loadedUsers == null) {
+            throw new IllegalArgumentException("Save file does not contain users");
+        }
+
+        Map<String, User> users = new LinkedHashMap<>();
+        for (User user : loadedUsers.values()) {
+            if (user == null) {
+                throw new IllegalArgumentException("Save file contains an invalid user");
+            }
+            String key = normalizeUsername(user.getUsername());
+            if (users.putIfAbsent(key, user) != null) {
+                throw new IllegalArgumentException("Save file contains duplicate username: " + user.getUsername());
+            }
+        }
+        return users;
+    }
+
+    private Map<Integer, Event> copyAndValidateEvents(
+            Map<Integer, Event> loadedEvents, Collection<User> loadedUsers) {
+        if (loadedEvents == null) {
+            throw new IllegalArgumentException("Save file does not contain events");
+        }
+
+        Map<Integer, Event> events = new LinkedHashMap<>();
+        for (Event event : loadedEvents.values()) {
+            if (event == null || events.putIfAbsent(event.getId(), event) != null) {
+                throw new IllegalArgumentException("Save file contains invalid or duplicate events");
+            }
+            boolean hasKnownMarketMaker = loadedUsers.stream().anyMatch(event::hasMarketMaker);
+            if (!hasKnownMarketMaker) {
+                throw new IllegalArgumentException(
+                        "Event " + event.getId() + " has no Market Maker in the saved users");
+            }
+        }
+        return events;
     }
 
 
