@@ -4,6 +4,8 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class Event implements Serializable {
     private final int id;
@@ -15,7 +17,8 @@ public final class Event implements Serializable {
     private final TradingMethod tradingMethod;
     private final Account account;
     private final List<Trade> tradeHistory;
-    private User marketMaker;
+    private final User marketMaker;
+    private final Map<User, UserParticipation> participations;
 
     private EventState state;
     private Option winningOption;
@@ -105,6 +108,7 @@ public final class Event implements Serializable {
         this.account = account;
         this.marketMaker = marketMaker;
         this.tradeHistory = new ArrayList<>();
+        this.participations = new LinkedHashMap<>();
         this.state = EventState.NOT_STARTED;
     }
 
@@ -158,11 +162,35 @@ public final class Event implements Serializable {
         return List.copyOf(tradeHistory);
     }
 
-    public void start() {
+    public void start(User actingUser) {
+        validateMarketMaker(actingUser);
+        actingUser.validateCanPerformActions();
+        if (state != EventState.NOT_STARTED) {
+            throw new IllegalStateException("Event can only start from NOT_STARTED");
+        }
+        if (!(tradingMethod instanceof LMSR lmsr)) {
+            throw new IllegalStateException("Order Book startup is not implemented yet");
+        }
+
+        double subsidy = lmsr.calculateInitialSubsidy();
+        if (!Double.isFinite(subsidy) || subsidy <= 0.0) {
+            throw new IllegalStateException("LMSR produced an invalid initial subsidy");
+        }
+        if (!actingUser.canAfford(subsidy)) {
+            throw new IllegalStateException("Market Maker has insufficient funds for the initial LMSR subsidy");
+        }
+        if (!account.canDeposit(subsidy)) {
+            throw new IllegalStateException("Event account cannot accept the initial LMSR subsidy");
+        }
+
+        actingUser.withdraw(subsidy);
+        account.deposit(subsidy);
         transitionTo(EventState.ACTIVE);
     }
 
-    public Trade purchaseLmsrShares(Option option, int quantity) {
+    public Trade purchaseLmsrShares(User buyer, Option option, int quantity) {
+        if (buyer == null) throw new IllegalArgumentException("Buyer cannot be null");
+        buyer.validateCanPerformActions();
         validateTradingAllowed();
         validateOption(option);
         validateQuantity(quantity);
@@ -207,50 +235,88 @@ public final class Event implements Serializable {
                 commissionPaid
         );
 
-        account.deposit(totalPayment);
+        if (!account.canDeposit(purchaseCost)
+                || (commissionPaid > 0.0 && !marketMaker.canReceive(commissionPaid))) {
+            throw new IllegalStateException("Purchase would produce an invalid account balance");
+        }
+        buyer.withdraw(totalPayment);
+        account.deposit(purchaseCost);
+        if (commissionPaid > 0.0) {
+            marketMaker.deposit(commissionPaid);
+        }
         lmsr.recordPurchase(option, quantity);
         tradeHistory.add(trade);
+        participations.computeIfAbsent(buyer, ignored -> new UserParticipation()).record(trade);
         totalCommissionCollected = updatedCommissionTotal;
 
         return trade;
     }
 
-    public void close(Option winningOption) {
+    public void close(User actingUser, Option winningOption) {
+        validateMarketMaker(actingUser);
+        actingUser.validateCanPerformActions();
         validateTradingAllowed();
         validateOption(winningOption);
+        if (!(tradingMethod instanceof LMSR)) {
+            throw new IllegalStateException("Order Book settlement is not implemented yet");
+        }
 
-        double grossPayout = 0.0;
-
-        for (Trade trade : tradeHistory) {
-            if (trade.getOption() == winningOption) {
-                grossPayout += trade.getQuantity();
+        Map<User, Settlement> settlements = new LinkedHashMap<>();
+        double totalGross = 0.0;
+        double totalCloseCommission = 0.0;
+        for (Map.Entry<User, UserParticipation> entry : participations.entrySet()) {
+            double gross = entry.getValue().getQuantity(winningOption);
+            double commission = commissionMethod == CommissionMethod.ON_CLOSE
+                    ? gross * commissionPercentage / 100.0 : 0.0;
+            settlements.put(entry.getKey(), new Settlement(gross - commission, commission));
+            totalGross += gross;
+            totalCloseCommission += commission;
+        }
+        if (!Double.isFinite(totalGross) || account.getBalance() + 1.0e-9 < totalGross) {
+            throw new IllegalStateException("Event account cannot cover LMSR settlement");
+        }
+        double mmCredit = totalCloseCommission + Math.max(0.0, account.getBalance() - totalGross);
+        Settlement marketMakerSettlement = settlements.get(marketMaker);
+        if (marketMakerSettlement != null) mmCredit += marketMakerSettlement.netPayout;
+        if (!Double.isFinite(totalCommissionCollected + totalCloseCommission)
+                || !marketMaker.canReceive(mmCredit)) {
+            throw new IllegalStateException("Settlement would produce an invalid account balance");
+        }
+        for (Map.Entry<User, Settlement> entry : settlements.entrySet()) {
+            if (entry.getKey() != marketMaker && !entry.getKey().canReceive(entry.getValue().netPayout)) {
+                throw new IllegalStateException("Settlement would produce an invalid participant balance");
             }
         }
 
-        double commissionAmount = 0.0;
-
-        if (commissionMethod == CommissionMethod.ON_CLOSE) {
-            commissionAmount = grossPayout * commissionPercentage / 100.0;
+        for (Map.Entry<User, Settlement> entry : settlements.entrySet()) {
+            Settlement settlement = entry.getValue();
+            if (settlement.netPayout > 0.0) entry.getKey().deposit(settlement.netPayout);
+            if (settlement.commission > 0.0) {
+                marketMaker.deposit(settlement.commission);
+                participations.get(entry.getKey()).addCloseCommission(settlement.commission);
+            }
         }
+        account.withdraw(totalGross);
+        double remainder = account.drain();
+        if (remainder > 0.0) marketMaker.deposit(remainder);
 
-        double netPayout = grossPayout - commissionAmount;
-        double updatedCommissionTotal =
-                totalCommissionCollected + commissionAmount;
-
-        if (!Double.isFinite(netPayout)
-                || !Double.isFinite(updatedCommissionTotal)) {
-            throw new IllegalStateException(
-                    "Settlement produced an invalid monetary value"
-            );
-        }
-
-        account.withdraw(netPayout);
-
-        totalCommissionCollected = updatedCommissionTotal;
+        totalCommissionCollected += totalCloseCommission;
         this.winningOption = winningOption;
 
         transitionTo(EventState.CLOSED);
     }
+
+    public Optional<UserParticipation> getParticipation(User user) {
+        return Optional.ofNullable(participations.get(user));
+    }
+
+    private void validateMarketMaker(User actingUser) {
+        if (actingUser == null || marketMaker != actingUser) {
+            throw new IllegalArgumentException("Only the assigned Market Maker may perform this operation");
+        }
+    }
+
+    private record Settlement(double netPayout, double commission) {}
 
     private void validateOption(Option option) {
 

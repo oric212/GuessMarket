@@ -19,9 +19,11 @@ public interface Engine {
 
     UserDTO getUser(String username);
 
-    PurchaseResultDTO purchaseShares(int eventId, int optionIndex, int quantity);
+    EventStateDTO startEvent(String username, int eventId);
 
-    EventStateDTO closeEvent(int eventId, int winningOptionIndex);
+    PurchaseResultDTO purchaseShares(String username, int eventId, int optionIndex, int quantity);
+
+    EventStateDTO closeEvent(String username, int eventId, int winningOptionIndex);
 
     void saveState(String filePath);
     void loadState(String filePath);

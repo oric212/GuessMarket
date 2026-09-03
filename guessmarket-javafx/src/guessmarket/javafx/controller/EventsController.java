@@ -37,6 +37,7 @@ public final class EventsController {
     private final TableView<TradeDTO> tradesTable = new TableView<>();
     private final ComboBox<String> purchaseOption = new ComboBox<>();
     private final TextField quantityField = new TextField();
+    private final TextField actingUsername = new TextField();
     private final Label purchaseResult = new Label();
     private final ComboBox<String> winningOption = new ComboBox<>();
     private EventDTO selectedEvent;
@@ -141,6 +142,7 @@ public final class EventsController {
     }
 
     private Parent buildActions() {
+        actingUsername.setPromptText("Existing username");
         quantityField.setPromptText("Positive whole number");
         Button purchaseButton = new Button("Purchase shares");
         purchaseButton.setOnAction(event -> purchase());
@@ -149,10 +151,11 @@ public final class EventsController {
         GridPane purchase = new GridPane();
         purchase.setHgap(8);
         purchase.setVgap(8);
-        purchase.addRow(0, new Label("Option"), purchaseOption);
-        purchase.addRow(1, new Label("Quantity"), quantityField);
-        purchase.add(purchaseButton, 1, 2);
-        purchase.add(purchaseResult, 0, 3, 2, 1);
+        purchase.addRow(0, new Label("Username"), actingUsername);
+        purchase.addRow(1, new Label("Option"), purchaseOption);
+        purchase.addRow(2, new Label("Quantity"), quantityField);
+        purchase.add(purchaseButton, 1, 3);
+        purchase.add(purchaseResult, 0, 4, 2, 1);
 
         Button closeButton = new Button("Close event");
         closeButton.setOnAction(event -> closeEvent());
@@ -251,7 +254,8 @@ public final class EventsController {
         try {
             int quantity = Integer.parseInt(quantityField.getText().trim());
             if (quantity <= 0) throw new IllegalArgumentException("Quantity must be a positive whole number.");
-            PurchaseResultDTO result = engine.purchaseShares(selectedEvent.id(), optionIndex + 1, quantity);
+            PurchaseResultDTO result = engine.purchaseShares(
+                    actingUsername.getText(), selectedEvent.id(), optionIndex + 1, quantity);
             purchaseResult.getStyleClass().remove("error-message");
             purchaseResult.setText("Purchase cost: " + format(result.purchaseCost())
                     + " | Commission: " + format(result.commission())
@@ -275,7 +279,7 @@ public final class EventsController {
             return;
         }
         try {
-            engine.closeEvent(selectedEvent.id(), optionIndex + 1);
+            engine.closeEvent(actingUsername.getText(), selectedEvent.id(), optionIndex + 1);
             purchaseResult.getStyleClass().remove("error-message");
             purchaseResult.setText("Event closed successfully.");
             refreshEvents();

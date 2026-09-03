@@ -55,4 +55,12 @@ public final class User implements Serializable {
             );
         }
     }
+
+    boolean canAfford(double amount) {
+        return userAccount.canAfford(amount);
+    }
+
+    boolean canReceive(double amount) {
+        return userAccount.canDeposit(amount);
+    }
 }

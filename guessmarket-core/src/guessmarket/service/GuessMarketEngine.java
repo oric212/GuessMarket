@@ -138,12 +138,36 @@ public class GuessMarketEngine implements Engine, Serializable {
                 .map(Event::getId)
                 .toList();
 
+        List<UserParticipationDTO> participations = eventsById.values().stream()
+                .map(event -> event.getParticipation(user)
+                        .map(participation -> createParticipationDTO(event, participation))
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .toList();
+
         return new UserDTO(
                 user.getUsername(),
                 user.getAccountBalance(),
                 user.isBlocked(),
-                marketMakerEventIds
+                marketMakerEventIds,
+                participations
         );
+    }
+
+    private UserParticipationDTO createParticipationDTO(Event event, UserParticipation participation) {
+        Map<String, Integer> holdings = new LinkedHashMap<>();
+        for (Option option : event.getOptions()) {
+            holdings.put(option.getName(), participation.getQuantity(option));
+        }
+        List<TradeDTO> trades = participation.getTrades().stream()
+                .map(this::createTradeDTO)
+                .toList();
+        return new UserParticipationDTO(
+                event.getId(), holdings, trades, participation.getTotalCommissionPaid());
+    }
+
+    private TradeDTO createTradeDTO(Trade trade) {
+        return new TradeDTO(trade.getOption().getName(), trade.getQuantity(), trade.getPurchaseCost());
     }
 
     @Override
@@ -222,12 +246,21 @@ public class GuessMarketEngine implements Engine, Serializable {
     }
 
     @Override
-    public PurchaseResultDTO purchaseShares(int eventId, int optionChoice, int quantity) {
+    public EventStateDTO startEvent(String username, int eventId) {
+        User actingUser = requireUser(username);
+        Event event = requireEvent(eventId);
+        event.start(actingUser);
+        return getEventState(eventId);
+    }
+
+    @Override
+    public PurchaseResultDTO purchaseShares(String username, int eventId, int optionChoice, int quantity) {
+        User buyer = requireUser(username);
         Event requestedEvent = eventsById.get(eventId);
         validateEvent(eventId, requestedEvent);
 
         Option option = requestedEvent.getOptionByChoice(optionChoice);
-        Trade trade = requestedEvent.purchaseLmsrShares(option,quantity);
+        Trade trade = requestedEvent.purchaseLmsrShares(buyer, option,quantity);
 
         return new PurchaseResultDTO(
                 requestedEvent.getId(),
@@ -241,12 +274,13 @@ public class GuessMarketEngine implements Engine, Serializable {
 
 
     @Override
-    public EventStateDTO closeEvent(int eventId, int winningOptionChoice) {
+    public EventStateDTO closeEvent(String username, int eventId, int winningOptionChoice) {
+        User actingUser = requireUser(username);
         Event requestedEvent = eventsById.get(eventId);
         validateEvent(eventId, requestedEvent);
 
         Option winningOption = requestedEvent.getOptionByChoice(winningOptionChoice);
-        requestedEvent.close(winningOption);
+        requestedEvent.close(actingUser, winningOption);
 
         return getEventState(eventId);
     }
@@ -324,6 +358,23 @@ public class GuessMarketEngine implements Engine, Serializable {
 
     private String normalizeUsername(String username) {
         return username.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private User requireUser(String username) {
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("Username cannot be blank");
+        }
+        User user = usersByName.get(normalizeUsername(username));
+        if (user == null) {
+            throw new IllegalArgumentException("No user exists with username: " + username.trim());
+        }
+        return user;
+    }
+
+    private Event requireEvent(int eventId) {
+        Event event = eventsById.get(eventId);
+        validateEvent(eventId, event);
+        return event;
     }
 
     private Map<String, User> copyAndValidateUsers(Map<String, User> loadedUsers) {
