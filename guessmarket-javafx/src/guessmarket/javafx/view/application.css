@@ -33,6 +33,19 @@
     -fx-text-fill: #a32626;
 }
 
+.blocked-warning {
+    -fx-background-color: #fff3cd;
+    -fx-border-color: #d39e00;
+    -fx-padding: 10px;
+    -fx-text-fill: #7a4d00;
+    -fx-font-weight: bold;
+}
+
+.secondary-text {
+    -fx-text-fill: #64748b;
+    -fx-font-style: italic;
+}
+
 .result-message {
     -fx-text-fill: #176b3a;
 }

@@ -28,7 +28,7 @@ public final class MainController {
         this.engine = engine;
         this.owner = owner;
         this.eventsController = new EventsController(engine);
-        this.usersController = new UsersController(engine);
+        this.usersController = new UsersController(engine, this::refreshApplication);
         buildView();
     }
 
@@ -103,8 +103,7 @@ public final class MainController {
             pathLabel.setText(file.getAbsolutePath());
             pathLabel.getTooltip().setText(file.getAbsolutePath());
             statusLabel.setText("Market loaded successfully.");
-            eventsController.refreshEvents();
-            usersController.refreshUsers();
+            refreshApplication();
         });
         loadTask.setOnFailed(event -> {
             finishLoading();
@@ -115,6 +114,11 @@ public final class MainController {
         Thread worker = new Thread(loadTask, "guessmarket-xml-loader");
         worker.setDaemon(true);
         worker.start();
+    }
+
+    private void refreshApplication() {
+        usersController.refreshUsers();
+        eventsController.refreshEvents();
     }
 
     private void finishLoading() {
