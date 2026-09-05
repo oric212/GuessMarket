@@ -8,7 +8,13 @@ public record EventDTO (
     int commissionPercentage,
     String commissionMethod,
     List <String> options,
-    String eventState
+    String eventState,
+    String tradingMethod,
+    double currentEventAccountBalance,
+    String marketMakerUsername
 ){
+    public EventDTO {
+        options = List.copyOf(options);
+    }
 }
 

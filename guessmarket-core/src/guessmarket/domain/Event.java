@@ -142,6 +142,17 @@ public final class Event implements Serializable {
         return marketMaker == user;
     }
 
+    public String getMarketMakerUsername() { return marketMaker.getUsername(); }
+
+    public List<User> getParticipants() { return List.copyOf(participations.keySet()); }
+
+    public OrderBookSnapshot getOrderBookSnapshot() {
+        if (!(tradingMethod instanceof OrderBook orderBook)) {
+            throw new IllegalStateException("Event does not use Order Book trading");
+        }
+        return orderBook.snapshot();
+    }
+
     public double getAccountBalance() {
         return account.getBalance();
     }

@@ -10,6 +10,7 @@ public final class UserParticipation implements Serializable {
     private final List<Trade> trades = new ArrayList<>();
     private final Map<Option, Integer> quantitiesByOption = new LinkedHashMap<>();
     private final Map<Option, Integer> reservedSellQuantities = new LinkedHashMap<>();
+    private final Map<Option, Double> cumulativePurchaseAmounts = new LinkedHashMap<>();
     private double totalCommissionPaid;
     private double totalCashPaid;
     private double totalCashReceived;
@@ -19,6 +20,7 @@ public final class UserParticipation implements Serializable {
         quantitiesByOption.merge(trade.getOption(), trade.getQuantity(), Integer::sum);
         totalCommissionPaid += trade.getCommissionPaid();
         totalCashPaid += trade.getPurchaseCost() + trade.getCommissionPaid();
+        cumulativePurchaseAmounts.merge(trade.getOption(), trade.getPurchaseCost(), Double::sum);
     }
 
     public List<Trade> getTrades() {
@@ -52,6 +54,10 @@ public final class UserParticipation implements Serializable {
     public double getTotalCashPaid() { return totalCashPaid; }
     public double getTotalCashReceived() { return totalCashReceived; }
 
+    public double getCumulativePurchaseAmount(Option option) {
+        return cumulativePurchaseAmounts.getOrDefault(option, 0.0);
+    }
+
     void addHoldings(Option option, int quantity) {
         if (quantity > 0) quantitiesByOption.put(option, Math.addExact(getQuantity(option), quantity));
     }
@@ -79,6 +85,7 @@ public final class UserParticipation implements Serializable {
         addHoldings(option, quantity);
         totalCashPaid += value + commission;
         totalCommissionPaid += commission;
+        cumulativePurchaseAmounts.merge(option, value, Double::sum);
     }
 
     void recordSell(Option option, int quantity, double value) {

@@ -98,13 +98,16 @@ public class GuessMarketEngine implements Engine, Serializable {
                     e.getCommissionPercentage(),
                     e.getCommissionMethod().name(),
                     optionNames,
-                    e.getState().name()
+                    e.getState().name(),
+                    e.getTradingMethodType().name(),
+                    e.getAccountBalance(),
+                    e.getMarketMakerUsername()
             );
 
             eventSummaries.add(eventDTO);
         }
 
-        return eventSummaries;
+        return List.copyOf(eventSummaries);
     }
 
     @Override
@@ -158,18 +161,26 @@ public class GuessMarketEngine implements Engine, Serializable {
         Map<String, Integer> holdings = new LinkedHashMap<>();
         Map<String, Integer> reserved = new LinkedHashMap<>();
         Map<String, Integer> available = new LinkedHashMap<>();
+        Map<String, Double> purchaseAmounts = new LinkedHashMap<>();
+        Map<String, Double> currentValues = new LinkedHashMap<>();
         for (Option option : event.getOptions()) {
             holdings.put(option.getName(), participation.getQuantity(option));
             reserved.put(option.getName(), participation.getReservedSellQuantity(option));
             available.put(option.getName(), participation.getAvailableToSell(option));
+            purchaseAmounts.put(option.getName(), participation.getCumulativePurchaseAmount(option));
+            currentValues.put(option.getName(), currentHoldingValue(event, option, participation));
         }
-        List<TradeDTO> trades = participation.getTrades().stream()
+        List<TradeDTO> trades = participation.getTrades().reversed().stream()
                 .map(this::createTradeDTO)
                 .toList();
         return new UserParticipationDTO(
-                event.getId(), holdings, reserved, available, trades,
+                event.getId(), event.getName(), event.getTradingMethodType().name(), event.getState().name(),
+                event.getWinningOption().map(Option::getName).orElse(null),
+                holdings, reserved, available, trades, purchaseAmounts, currentValues,
                 participation.getTotalCommissionPaid(), participation.getTotalCashPaid(),
-                participation.getTotalCashReceived());
+                participation.getTotalCashReceived(),
+                event.getState() == EventState.CLOSED
+                        ? participation.getTotalCashReceived() - participation.getTotalCashPaid() : null);
     }
 
     private TradeDTO createTradeDTO(Trade trade) {
@@ -184,6 +195,14 @@ public class GuessMarketEngine implements Engine, Serializable {
 
         List<OptionStateDTO> optionStateDTOs = createOptionStateDtoList(requestedEvent);
         List<TradeDTO> tradeDTOs = createTradeDTOList(requestedEvent);
+        LmsrDetailsDTO lmsrDetails = requestedEvent.getTradingMethodType() == TradingMethodType.LMSR
+                ? new LmsrDetailsDTO(optionStateDTOs, tradeDTOs) : null;
+        OrderBookDetailsDTO orderBookDetails = requestedEvent.getTradingMethodType() == TradingMethodType.ORDER_BOOK
+                ? createOrderBookDetails(requestedEvent) : null;
+        List<EventParticipantDTO> participants = requestedEvent.getParticipants().stream()
+                .map(user -> createEventParticipantDTO(requestedEvent, user,
+                        requestedEvent.getParticipation(user).orElseThrow()))
+                .toList();
 
         return new EventStateDTO(
                 requestedEvent.getId(),
@@ -196,8 +215,68 @@ public class GuessMarketEngine implements Engine, Serializable {
                 requestedEvent
                 .getWinningOption()
                 .map(Option::getName)
-                .orElse(null)
+                .orElse(null),
+                requestedEvent.getDescription(),
+                requestedEvent.getTradingMethodType().name(),
+                requestedEvent.getCommissionPercentage(),
+                requestedEvent.getCommissionMethod().name(),
+                requestedEvent.getMarketMakerUsername(),
+                convertOptionsToStrings(requestedEvent.getOptions()),
+                lmsrDetails,
+                orderBookDetails,
+                participants
         );
+    }
+
+    private OrderBookDetailsDTO createOrderBookDetails(Event event) {
+        OrderBookSnapshot orderBook = event.getOrderBookSnapshot();
+        List<OrderBookOptionDTO> books = orderBook.optionBooks().stream().map(option ->
+                new OrderBookOptionDTO(
+                        option.optionName(),
+                        option.pendingBuyOrders().stream().map(this::createPendingOrderDTO).toList(),
+                        option.pendingSellOrders().stream().map(this::createPendingOrderDTO).toList(),
+                        boxed(option.last()), boxed(option.bid()), boxed(option.ask()),
+                        boxed(option.mid()), boxed(option.spread())))
+                .toList();
+        return new OrderBookDetailsDTO(orderBook.d(), orderBook.allowMint(), orderBook.initial(), books);
+    }
+
+    private PendingOrderDTO createPendingOrderDTO(PendingOrderSnapshot order) {
+        return new PendingOrderDTO(order.username(), order.side().name(), order.optionName(),
+                order.remainingQuantity(), order.pricePerShare());
+    }
+
+    private static Double boxed(OptionalDouble value) {
+        return value.isPresent() ? value.getAsDouble() : null;
+    }
+
+    private EventParticipantDTO createEventParticipantDTO(
+            Event event, User user, UserParticipation participation) {
+        Map<String, Integer> holdings = new LinkedHashMap<>();
+        Map<String, Integer> reserved = new LinkedHashMap<>();
+        Map<String, Integer> available = new LinkedHashMap<>();
+        Map<String, Double> values = new LinkedHashMap<>();
+        for (Option option : event.getOptions()) {
+            holdings.put(option.getName(), participation.getQuantity(option));
+            reserved.put(option.getName(), participation.getReservedSellQuantity(option));
+            available.put(option.getName(), participation.getAvailableToSell(option));
+            values.put(option.getName(), currentHoldingValue(event, option, participation));
+        }
+        return new EventParticipantDTO(user.getUsername(), holdings, reserved, available, values,
+                participation.getTotalCommissionPaid(), participation.getTotalCashPaid(),
+                participation.getTotalCashReceived());
+    }
+
+    private Double currentHoldingValue(Event event, Option option, UserParticipation participation) {
+        int quantity = participation.getQuantity(option);
+        if (event.getTradingMethodType() == TradingMethodType.LMSR) {
+            return quantity * event.getLmsrOptionPrice(option);
+        }
+        OrderBookOptionSnapshot book = event.getOrderBookSnapshot().optionBooks().stream()
+                .filter(item -> item.optionName().equals(option.getName())).findFirst().orElseThrow();
+        OptionalDouble price = book.mid();
+        if (price.isEmpty()) price = book.last();
+        return price.isPresent() ? quantity * price.getAsDouble() : null;
     }
 
     private static List<TradeDTO> createTradeDTOList(Event requestedEvent) {

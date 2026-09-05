@@ -133,6 +133,21 @@ public final class OrderBook implements TradingMethod {
                 ? OptionalDouble.of(ask.getAsDouble() - bid.getAsDouble()) : OptionalDouble.empty();
     }
 
+    public OrderBookSnapshot snapshot() {
+        return new OrderBookSnapshot(d, allowMint, initial, options.stream().map(option ->
+                new OrderBookOptionSnapshot(
+                        option.getName(),
+                        getPendingBuyOrders(option).stream().map(this::snapshot).toList(),
+                        getPendingSellOrders(option).stream().map(this::snapshot).toList(),
+                        getLastExecutionPrice(option), getHighestBid(option), getLowestAsk(option),
+                        getMid(option), getSpread(option))).toList());
+    }
+
+    private PendingOrderSnapshot snapshot(Order order) {
+        return new PendingOrderSnapshot(order.getUser().getUsername(), order.getSide(),
+                order.getOption().getName(), order.getRemainingQuantity(), order.getPricePerShare());
+    }
+
     private OptionalDouble priceOf(Order order) {
         return order == null ? OptionalDouble.empty() : OptionalDouble.of(order.getPricePerShare());
     }
