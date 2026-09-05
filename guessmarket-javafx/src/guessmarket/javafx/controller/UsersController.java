@@ -280,7 +280,7 @@ public final class UsersController {
         addInfoRow(summary, 4, "Commission paid", new Label(format(dto.totalCommissionPaid())));
         addInfoRow(summary, 5, "Total cash paid", new Label(format(dto.totalCashPaid())));
         addInfoRow(summary, 6, "Total cash received", new Label(format(dto.totalCashReceived())));
-        addInfoRow(summary, 7, "Final profit/loss", new Label(formatNullable(dto.profitLoss())));
+        addInfoRow(summary, 7, "Final profit/loss", new Label(formatProfitLoss(dto.profitLoss())));
         TableView<String> options = new TableView<>();
         configureTable(options, "No option holdings.");
         options.getColumns().add(column("Option", name -> name, 140));
@@ -338,8 +338,8 @@ public final class UsersController {
             context.getChildren().add(new Label("d: " + state.orderBookDetails().d()
                     + " | Allow mint: " + (state.orderBookDetails().allowMint() ? "Yes" : "No")));
             for (OrderBookOptionDTO option : state.orderBookDetails().optionBooks()) {
-                context.getChildren().add(new Label(option.optionName() + " — LAST " + formatNullable(option.last())
-                        + " | BID " + formatNullable(option.bid()) + " | ASK " + formatNullable(option.ask())
+                context.getChildren().add(new Label(option.optionName() + " — LAST " + formatMarketValue(option.last())
+                        + " | BID " + formatMarketValue(option.bid()) + " | ASK " + formatMarketValue(option.ask())
                         + selectedUserPosition(option.optionName())));
             }
         }
@@ -560,7 +560,10 @@ public final class UsersController {
     }
     private static String statusOf(UserDTO user) { return user.blocked() ? "BLOCKED" : "ACTIVE"; }
     private static String format(double value) { return NUMBER.format(value); }
-    private static String formatNullable(Double value) { return value == null ? "N/A — available after closure" : format(value); }
+    static String formatMarketValue(Double value) { return value == null ? "N/A" : format(value); }
+    static String formatProfitLoss(Double value) {
+        return value == null ? "N/A — available after closure" : format(value);
+    }
     private static void setShown(Node node, boolean shown) { node.setVisible(shown); node.setManaged(shown); }
     private static Label heading(String text) { Label label = new Label(text); label.getStyleClass().add("section-title"); return label; }
     private static Label sectionLabel(String text) { Label label = new Label(text); label.getStyleClass().add("detail-subtitle"); return label; }

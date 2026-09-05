@@ -30,6 +30,10 @@ public final class UsersControllerWorkflowTest {
         check(UsersController.validPrice("10.250") == null, "Three-decimal price accepted");
         check(UsersController.validPrice("NaN") == null && UsersController.validPrice("0") == null,
                 "Invalid price accepted");
+        check(UsersController.formatMarketValue(null).equals("N/A"),
+                "Unavailable market statistic has a misleading label");
+        check(UsersController.formatProfitLoss(null).equals("N/A — available after closure"),
+                "Active-event final P/L availability is unclear");
 
         check(UsersController.findUser(List.of(mm, trader), "trader") == trader,
                 "User selection was not retained");

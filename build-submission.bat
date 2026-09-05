@@ -30,7 +30,6 @@ if errorlevel 1 exit /b 1
 if errorlevel 1 exit /b 1
 copy /y "run.bat" "submission\run.bat" >nul
 copy /y "README.md" "submission\README.md" >nul
-copy /y "README.rtf" "submission\README.rtf" >nul
 for %%F in (angus-activation.jar jakarta.activation-api.jar jakarta.xml.bind-api.jar jaxb-core.jar jaxb-impl.jar) do copy /y "%JAXB_HOME%\mod\%%F" "submission\lib\jaxb\" >nul
 for %%F in (javafx.base.jar javafx.graphics.jar javafx.controls.jar) do copy /y "%JAVAFX_SDK%\lib\%%F" "submission\lib\javafx\" >nul
 xcopy /e /i /y "%JAVAFX_SDK%\bin" "submission\lib\javafx-bin" >nul
