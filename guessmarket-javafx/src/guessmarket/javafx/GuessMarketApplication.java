@@ -18,8 +18,8 @@ public final class GuessMarketApplication extends Application {
                 GuessMarketApplication.class.getResource("/guessmarket/javafx/view/application.css").toExternalForm());
         Font.getDefault();
         stage.setTitle("Guess Market");
-        stage.setMinWidth(760);
-        stage.setMinHeight(520);
+        stage.setMinWidth(560);
+        stage.setMinHeight(400);
         stage.setScene(scene);
         stage.show();
     }

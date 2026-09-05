@@ -20,6 +20,19 @@
     -fx-text-fill: #16324f;
 }
 
+.detail-subtitle {
+    -fx-font-weight: bold;
+    -fx-text-fill: #334155;
+}
+
+.buy-side {
+    -fx-text-fill: #176b3a;
+}
+
+.sell-side {
+    -fx-text-fill: #a32626;
+}
+
 .result-message {
     -fx-text-fill: #176b3a;
 }

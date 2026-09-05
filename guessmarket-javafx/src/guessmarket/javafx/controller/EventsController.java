@@ -7,52 +7,54 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.Locale;
 import java.util.function.Function;
 
 public final class EventsController {
+    private static final String ALL = "All";
+    private static final DecimalFormat NUMBER = new DecimalFormat(
+            "0.##", DecimalFormatSymbols.getInstance(Locale.US));
     private final Engine engine;
     private final SplitPane root = new SplitPane();
     private final ObservableList<EventDTO> events = FXCollections.observableArrayList();
     private final FilteredList<EventDTO> filteredEvents = new FilteredList<>(events);
     private final TableView<EventDTO> eventTable = new TableView<>(filteredEvents);
-    private final ComboBox<String> statusFilter = new ComboBox<>();
+    private final ComboBox<String> methodFilter = new ComboBox<>();
+    private final ComboBox<String> stateFilter = new ComboBox<>();
     private final ComboBox<String> commissionFilter = new ComboBox<>();
-
-    private final Label emptyDetails = new Label("Select an event to view details and trading controls.");
+    private final Label emptyDetails = new Label("Load a market, then select an event to monitor it.");
     private final VBox detailsContent = new VBox(12);
     private final Label idValue = new Label();
     private final Label nameValue = new Label();
     private final Label descriptionValue = new Label();
-    private final Label statusValue = new Label();
+    private final Label stateValue = new Label();
+    private final Label methodValue = new Label();
+    private final Label marketMakerValue = new Label();
     private final Label commissionValue = new Label();
-    private final Label winnerValue = new Label();
     private final Label balanceValue = new Label();
     private final Label collectedValue = new Label();
-    private final TableView<OptionStateDTO> optionsTable = new TableView<>();
-    private final TableView<TradeDTO> tradesTable = new TableView<>();
-    private final ComboBox<String> purchaseOption = new ComboBox<>();
-    private final TextField quantityField = new TextField();
-    private final TextField actingUsername = new TextField();
-    private final Label purchaseResult = new Label();
-    private final ComboBox<String> winningOption = new ComboBox<>();
+    private final Label optionsValue = new Label();
+    private final Label winnerValue = new Label();
+    private final VBox methodDetails = new VBox();
+    private final VBox participantsArea = new VBox();
     private EventDTO selectedEvent;
 
     public EventsController(Engine engine) {
         this.engine = engine;
+        configureFilters();
         configureEventTable();
-        configureDetailTables();
         root.getItems().addAll(buildEventBrowser(), buildDetails());
-        root.setDividerPositions(0.38);
+        root.setDividerPositions(0.43);
     }
 
-    public Parent getView() {
-        return root;
-    }
+    public Parent getView() { return root; }
 
     public void refreshEvents() {
         Integer selectedId = selectedEvent == null ? null : selectedEvent.id();
@@ -61,29 +63,26 @@ public final class EventsController {
         restoreSelection(selectedId);
     }
 
-    private Parent buildEventBrowser() {
-        Label title = new Label("Events");
-        title.getStyleClass().add("section-title");
-
-        ComboBox<String> methodFilter = new ComboBox<>(FXCollections.observableArrayList("LMSR"));
+    private void configureFilters() {
+        methodFilter.setItems(FXCollections.observableArrayList(ALL, "LMSR", "ORDER_BOOK"));
+        stateFilter.setItems(FXCollections.observableArrayList(ALL, "NOT_STARTED", "ACTIVE", "CLOSED"));
+        commissionFilter.setItems(FXCollections.observableArrayList(ALL, "ON_PURCHASE", "ON_CLOSE"));
         methodFilter.getSelectionModel().selectFirst();
-        methodFilter.setDisable(true);
-        methodFilter.setTooltip(new Tooltip("LMSR is the only method available in Exercise 01."));
-        statusFilter.setItems(FXCollections.observableArrayList("All statuses", "NOT_STARTED", "ACTIVE", "CLOSED"));
-        commissionFilter.setItems(FXCollections.observableArrayList("All commission methods", "ON_PURCHASE", "ON_CLOSE"));
-        statusFilter.getSelectionModel().selectFirst();
+        stateFilter.getSelectionModel().selectFirst();
         commissionFilter.getSelectionModel().selectFirst();
-        statusFilter.setOnAction(event -> applyFiltersAndSelection());
+        methodFilter.setOnAction(event -> applyFiltersAndSelection());
+        stateFilter.setOnAction(event -> applyFiltersAndSelection());
         commissionFilter.setOnAction(event -> applyFiltersAndSelection());
+    }
 
+    private Parent buildEventBrowser() {
         FlowPane filters = new FlowPane(8, 6,
-                filterControl("Method", methodFilter),
-                filterControl("Status", statusFilter),
+                filterControl("Trading method", methodFilter), filterControl("State", stateFilter),
                 filterControl("Commission", commissionFilter));
-        filters.setPrefWrapLength(420);
-
-        VBox left = new VBox(10, title, filters, eventTable);
+        filters.setPrefWrapLength(440);
+        VBox left = new VBox(10, heading("Events overview"), filters, eventTable);
         left.setPadding(new Insets(12));
+        left.setMinWidth(0);
         VBox.setVgrow(eventTable, Priority.ALWAYS);
         return left;
     }
@@ -91,123 +90,142 @@ public final class EventsController {
     private void configureEventTable() {
         eventTable.setPlaceholder(new Label("Load an XML file to display events."));
         eventTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        eventTable.getColumns().add(column("ID", dto -> dto.id(), 55));
-        eventTable.getColumns().add(column("Name", EventDTO::eventName, 160));
-        eventTable.getColumns().add(column("Description", EventDTO::description, 210));
-        eventTable.getColumns().add(column("Status", EventDTO::eventState, 100));
-        eventTable.getColumns().add(column("Commission", dto -> dto.commissionPercentage() + "% " + dto.commissionMethod(), 145));
-        eventTable.getColumns().add(column("Options", dto -> String.join(", ", dto.options()), 180));
-        eventTable.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, value) -> selectEvent(value));
+        eventTable.getColumns().add(column("ID", EventDTO::id, 50));
+        eventTable.getColumns().add(column("Name", EventDTO::eventName, 140));
+        eventTable.getColumns().add(column("State", EventDTO::eventState, 100));
+        eventTable.getColumns().add(column("Method", EventDTO::tradingMethod, 105));
+        eventTable.getColumns().add(column("Commission",
+                dto -> dto.commissionMethod() + " " + dto.commissionPercentage() + "%", 150));
+        eventTable.getColumns().add(column("Account", dto -> format(dto.currentEventAccountBalance()), 90));
+        eventTable.getColumns().add(column("Market Maker", EventDTO::marketMakerUsername, 110));
+        eventTable.getColumns().add(column("Options", dto -> String.join(" / ", dto.options()), 150));
+        eventTable.getSelectionModel().selectedItemProperty().addListener(
+                (observable, oldValue, value) -> selectEvent(value));
     }
 
     private Parent buildDetails() {
-        Label title = new Label("Event details and trade");
-        title.getStyleClass().add("section-title");
-        detailsContent.getChildren().addAll(
-                buildGeneralDetails(), buildCurrentState(), buildActions(), buildTradeHistory(), buildFutureAreas());
-        detailsContent.setPadding(new Insets(4));
+        detailsContent.getChildren().addAll(buildCommonDetails(), methodDetails, participantsArea);
         detailsContent.setVisible(false);
         detailsContent.setManaged(false);
         emptyDetails.setWrapText(true);
-
-        VBox body = new VBox(10, title, emptyDetails, detailsContent);
+        VBox body = new VBox(10, heading("Event monitoring"), emptyDetails, detailsContent);
         body.setPadding(new Insets(12));
+        body.setMinWidth(0);
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
         scroll.setPannable(true);
         return scroll;
     }
 
-    private Parent buildGeneralDetails() {
+    private Parent buildCommonDetails() {
         descriptionValue.setWrapText(true);
-        winnerValue.setWrapText(true);
+        optionsValue.setWrapText(true);
         GridPane grid = infoGrid();
         addInfoRow(grid, 0, "Event ID", idValue);
         addInfoRow(grid, 1, "Name", nameValue);
         addInfoRow(grid, 2, "Description", descriptionValue);
-        addInfoRow(grid, 3, "Status", statusValue);
-        addInfoRow(grid, 4, "Commission", commissionValue);
-        addInfoRow(grid, 5, "Winning option", winnerValue);
-        return titled("General", grid);
+        addInfoRow(grid, 3, "State", stateValue);
+        addInfoRow(grid, 4, "Trading method", methodValue);
+        addInfoRow(grid, 5, "Market Maker", marketMakerValue);
+        addInfoRow(grid, 6, "Commission", commissionValue);
+        addInfoRow(grid, 7, "Event account balance", balanceValue);
+        addInfoRow(grid, 8, "Commission collected", collectedValue);
+        addInfoRow(grid, 9, "Options", optionsValue);
+        addInfoRow(grid, 10, "Winning option", winnerValue);
+        return titled("Common event details", grid);
     }
 
-    private Parent buildCurrentState() {
-        GridPane accounts = infoGrid();
-        addInfoRow(accounts, 0, "Event account balance", balanceValue);
-        addInfoRow(accounts, 1, "Total commission collected", collectedValue);
-        VBox box = new VBox(8, accounts, optionsTable);
-        optionsTable.setPrefHeight(190);
-        VBox.setVgrow(optionsTable, Priority.ALWAYS);
-        return titled("Current LMSR state and account", box);
+    private Parent buildLmsrDetails(LmsrDetailsDTO details) {
+        TableView<OptionStateDTO> options = new TableView<>();
+        configureTable(options, "No LMSR option state is available.");
+        options.getColumns().add(column("Option", OptionStateDTO::optionName, 150));
+        options.getColumns().add(column("Current value", dto -> format(dto.currentOptionValue()), 120));
+        options.getColumns().add(column("Total purchased", OptionStateDTO::quantityBought, 125));
+        options.getItems().setAll(details.options());
+        options.setPrefHeight(150);
+        TableView<TradeDTO> trades = new TableView<>();
+        configureTable(trades, "No LMSR trades have been made.");
+        trades.getColumns().add(column("Option", TradeDTO::boughtOptionName, 150));
+        trades.getColumns().add(column("Quantity", TradeDTO::quantity, 100));
+        trades.getColumns().add(column("Purchase cost", dto -> format(dto.purchaseCost()), 125));
+        trades.getItems().setAll(details.trades());
+        trades.setPrefHeight(190);
+        return titled("LMSR market details", new VBox(10,
+                labeled("Options", options), labeled("Global trade history — newest first", trades)));
     }
 
-    private Parent buildActions() {
-        actingUsername.setPromptText("Existing username");
-        quantityField.setPromptText("Positive whole number");
-        Button purchaseButton = new Button("Purchase shares");
-        purchaseButton.setOnAction(event -> purchase());
-        purchaseResult.setWrapText(true);
-        purchaseResult.getStyleClass().add("result-message");
-        GridPane purchase = new GridPane();
-        purchase.setHgap(8);
-        purchase.setVgap(8);
-        purchase.addRow(0, new Label("Username"), actingUsername);
-        purchase.addRow(1, new Label("Option"), purchaseOption);
-        purchase.addRow(2, new Label("Quantity"), quantityField);
-        purchase.add(purchaseButton, 1, 3);
-        purchase.add(purchaseResult, 0, 4, 2, 1);
-
-        Button closeButton = new Button("Close event");
-        closeButton.setOnAction(event -> closeEvent());
-        GridPane close = new GridPane();
-        close.setHgap(8);
-        close.setVgap(8);
-        close.addRow(0, new Label("Winning option"), winningOption);
-        close.add(closeButton, 1, 1);
-
-        TitledPane purchasePane = titled("Purchase shares", purchase);
-        TitledPane closePane = titled("Close event", close);
-        VBox actions = new VBox(12, purchasePane, closePane);
-        VBox.setVgrow(purchasePane, Priority.ALWAYS);
-        VBox.setVgrow(closePane, Priority.ALWAYS);
-        purchasePane.setMaxWidth(Double.MAX_VALUE);
-        closePane.setMaxWidth(Double.MAX_VALUE);
-        return actions;
+    private Parent buildOrderBookDetails(OrderBookDetailsDTO details) {
+        GridPane configuration = infoGrid();
+        addInfoRow(configuration, 0, "d", new Label(Integer.toString(details.d())));
+        addInfoRow(configuration, 1, "Initial", new Label(Integer.toString(details.initial())));
+        addInfoRow(configuration, 2, "Allow mint", new Label(details.allowMint() ? "Yes" : "No"));
+        TabPane tabs = new TabPane();
+        tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        for (OrderBookOptionDTO option : details.optionBooks()) {
+            tabs.getTabs().add(new Tab(option.optionName(), buildOptionBook(option)));
+        }
+        tabs.setPrefHeight(500);
+        return titled("Order Book details", new VBox(12, labeled("Configuration", configuration), tabs));
     }
 
-    private Parent buildTradeHistory() {
-        tradesTable.setPrefHeight(190);
-        return titled("Trade history", tradesTable);
+    private Parent buildOptionBook(OrderBookOptionDTO option) {
+        GridPane statistics = infoGrid();
+        addInfoRow(statistics, 0, "LAST", new Label(formatNullable(option.last())));
+        addInfoRow(statistics, 1, "BID", new Label(formatNullable(option.bid())));
+        addInfoRow(statistics, 2, "ASK", new Label(formatNullable(option.ask())));
+        addInfoRow(statistics, 3, "MID", new Label(formatNullable(option.mid())));
+        addInfoRow(statistics, 4, "SPREAD", new Label(formatNullable(option.spread())));
+        TableView<PendingOrderDTO> buys = pendingOrdersTable("No pending BUY orders.");
+        buys.getItems().setAll(option.pendingBuyOrders());
+        TableView<PendingOrderDTO> sells = pendingOrdersTable("No pending SELL orders.");
+        sells.getItems().setAll(option.pendingSellOrders());
+        Label buyTitle = heading("Pending BUY orders");
+        buyTitle.getStyleClass().add("buy-side");
+        Label sellTitle = heading("Pending SELL orders");
+        sellTitle.getStyleClass().add("sell-side");
+        VBox content = new VBox(10, labeled("Statistics", statistics), buyTitle, buys, sellTitle, sells);
+        content.setPadding(new Insets(10));
+        buys.setPrefHeight(155);
+        sells.setPrefHeight(155);
+        return content;
     }
 
-    private Parent buildFutureAreas() {
-        TabPane future = new TabPane(
-                futureTab("Option order books", "Order Books will be added with Exercise 02 trading support."),
-                futureTab("Participations", "Participation and ownership information will be added with user support."));
-        future.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        future.setPrefHeight(120);
-        return titled("Exercise 02 extension areas", future);
+    private TableView<PendingOrderDTO> pendingOrdersTable(String placeholder) {
+        TableView<PendingOrderDTO> table = new TableView<>();
+        configureTable(table, placeholder);
+        table.getColumns().add(column("Username", PendingOrderDTO::username, 150));
+        table.getColumns().add(column("Remaining quantity", PendingOrderDTO::remainingQuantity, 145));
+        table.getColumns().add(column("Price/share", dto -> format(dto.pricePerShare()), 115));
+        return table;
     }
 
-    private void configureDetailTables() {
-        optionsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        optionsTable.setPlaceholder(new Label("No options available."));
-        optionsTable.getColumns().add(column("Option", OptionStateDTO::optionName, 170));
-        optionsTable.getColumns().add(column("Current value", dto -> format(dto.currentOptionValue()), 110));
-        optionsTable.getColumns().add(column("Total purchased", OptionStateDTO::quantityBought, 120));
+    private Parent buildParticipants(EventStateDTO state) {
+        String first = state.options().get(0);
+        String second = state.options().get(1);
+        TableView<EventParticipantDTO> table = new TableView<>();
+        configureTable(table, "No participants yet.");
+        table.getColumns().add(column("Username", EventParticipantDTO::username, 130));
+        table.getColumns().add(column(first + " quantity", dto -> dto.holdingsByOption().get(first), 125));
+        table.getColumns().add(column(first + " value",
+                dto -> formatNullable(dto.currentHoldingValueByOption().get(first)), 115));
+        table.getColumns().add(column(second + " quantity", dto -> dto.holdingsByOption().get(second), 125));
+        table.getColumns().add(column(second + " value",
+                dto -> formatNullable(dto.currentHoldingValueByOption().get(second)), 115));
+        table.getColumns().add(column("Reserved / available",
+                dto -> compactQuantities(dto, first, second), 210));
+        table.getColumns().add(column("Cash summary", EventsController::cashSummary, 215));
+        table.getItems().setAll(state.participants());
+        table.setPrefHeight(220);
+        return titled("Event participants", table);
+    }
 
-        tradesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        tradesTable.setPlaceholder(new Label("No trades have been made for this event."));
-        tradesTable.getColumns().add(column("Option", TradeDTO::boughtOptionName, 170));
-        tradesTable.getColumns().add(column("Quantity", TradeDTO::quantity, 100));
-        tradesTable.getColumns().add(column("Purchase cost", dto -> format(dto.purchaseCost()), 120));
+    private static <T> void configureTable(TableView<T> table, String placeholder) {
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label(placeholder));
     }
 
     private void selectEvent(EventDTO event) {
-        if (event == null) {
-            clearDetails();
-            return;
-        }
+        if (event == null) return;
         selectedEvent = event;
         refreshSelectedDetails();
     }
@@ -215,76 +233,33 @@ public final class EventsController {
     private void refreshSelectedDetails() {
         if (selectedEvent == null) return;
         try {
-            EventDTO summary = events.stream().filter(item -> item.id() == selectedEvent.id()).findFirst().orElse(selectedEvent);
-            EventStateDTO state = engine.getEventState(summary.id());
-            idValue.setText(Integer.toString(summary.id()));
-            nameValue.setText(summary.eventName());
-            descriptionValue.setText(summary.description());
-            statusValue.setText(state.eventState());
-            commissionValue.setText(summary.commissionPercentage() + "% (" + summary.commissionMethod() + ")");
-            winnerValue.setText(state.winningOption() == null ? "Not available" : state.winningOption());
+            EventStateDTO state = engine.getEventState(selectedEvent.id());
+            idValue.setText(Integer.toString(state.id()));
+            nameValue.setText(state.eventName());
+            descriptionValue.setText(state.description());
+            stateValue.setText(state.eventState());
+            methodValue.setText(state.tradingMethod());
+            marketMakerValue.setText(state.marketMakerUsername());
+            commissionValue.setText(state.commissionMethod() + " — " + state.commissionPercentage() + "%");
             balanceValue.setText(format(state.currentEventAccountBalance()));
             collectedValue.setText(format(state.totalCommissionCollected()));
-            optionsTable.getItems().setAll(state.optionStateDTOList());
-            tradesTable.getItems().setAll(state.trades());
-            purchaseOption.getItems().setAll(summary.options());
-            winningOption.getItems().setAll(summary.options());
-            purchaseOption.getSelectionModel().selectFirst();
-            winningOption.getSelectionModel().selectFirst();
-            emptyDetails.setText("Select an event to view details and trading controls.");
+            optionsValue.setText(String.join(" / ", state.options()));
+            winnerValue.setText(state.winningOption() == null ? "Not closed yet" : state.winningOption());
+            methodDetails.getChildren().clear();
+            if ("LMSR".equals(state.tradingMethod()) && state.lmsrDetails() != null) {
+                methodDetails.getChildren().add(buildLmsrDetails(state.lmsrDetails()));
+            } else if ("ORDER_BOOK".equals(state.tradingMethod()) && state.orderBookDetails() != null) {
+                methodDetails.getChildren().add(buildOrderBookDetails(state.orderBookDetails()));
+            } else {
+                methodDetails.getChildren().add(new Label("Method-specific details are unavailable."));
+            }
+            participantsArea.getChildren().setAll(buildParticipants(state));
             emptyDetails.setVisible(false);
             emptyDetails.setManaged(false);
             detailsContent.setVisible(true);
             detailsContent.setManaged(true);
         } catch (RuntimeException error) {
             showDetailsError(error);
-        }
-    }
-
-    private void purchase() {
-        if (selectedEvent == null) {
-            setResultError("Select an event first.");
-            return;
-        }
-        int optionIndex = purchaseOption.getSelectionModel().getSelectedIndex();
-        if (optionIndex < 0) {
-            setResultError("Select an option.");
-            return;
-        }
-        try {
-            int quantity = Integer.parseInt(quantityField.getText().trim());
-            if (quantity <= 0) throw new IllegalArgumentException("Quantity must be a positive whole number.");
-            PurchaseResultDTO result = engine.purchaseShares(
-                    actingUsername.getText(), selectedEvent.id(), optionIndex + 1, quantity);
-            purchaseResult.getStyleClass().remove("error-message");
-            purchaseResult.setText("Purchase cost: " + format(result.purchaseCost())
-                    + " | Commission: " + format(result.commission())
-                    + " | Total paid: " + format(result.totalPricePaid()));
-            refreshEvents();
-        } catch (NumberFormatException error) {
-            setResultError("Quantity must be a valid whole number.");
-        } catch (RuntimeException error) {
-            setResultError(messageOf(error));
-        }
-    }
-
-    private void closeEvent() {
-        if (selectedEvent == null) {
-            setResultError("Select an event first.");
-            return;
-        }
-        int optionIndex = winningOption.getSelectionModel().getSelectedIndex();
-        if (optionIndex < 0) {
-            setResultError("Select a winning option.");
-            return;
-        }
-        try {
-            engine.closeEvent(actingUsername.getText(), selectedEvent.id(), optionIndex + 1);
-            purchaseResult.getStyleClass().remove("error-message");
-            purchaseResult.setText("Event closed successfully.");
-            refreshEvents();
-        } catch (RuntimeException error) {
-            setResultError(messageOf(error));
         }
     }
 
@@ -295,20 +270,27 @@ public final class EventsController {
     }
 
     private void updateFilterPredicate() {
-        String status = statusFilter.getValue();
-        String commission = commissionFilter.getValue();
-        filteredEvents.setPredicate(event ->
-                (status == null || status.startsWith("All") || status.equals(event.eventState()))
-                        && (commission == null || commission.startsWith("All") || commission.equals(event.commissionMethod())));
+        filteredEvents.setPredicate(event -> matchesFilters(
+                event, methodFilter.getValue(), stateFilter.getValue(), commissionFilter.getValue()));
+        eventTable.setPlaceholder(new Label(events.isEmpty()
+                ? "Load an XML file to display events." : "No events match the selected filters."));
+    }
+
+    static boolean matchesFilters(EventDTO event, String method, String state, String commission) {
+        return matches(method, event.tradingMethod()) && matches(state, event.eventState())
+                && matches(commission, event.commissionMethod());
+    }
+
+    private static boolean matches(String selected, String actual) {
+        return selected == null || ALL.equals(selected) || selected.equals(actual);
     }
 
     private void restoreSelection(Integer preferredId) {
-        EventDTO preferred = preferredId == null ? null : filteredEvents.stream()
-                .filter(item -> item.id() == preferredId)
-                .findFirst()
-                .orElse(null);
+        EventDTO preferred = findPreferred(filteredEvents, preferredId);
         if (preferred != null) {
+            selectedEvent = preferred;
             eventTable.getSelectionModel().select(preferred);
+            refreshSelectedDetails();
         } else if (!filteredEvents.isEmpty()) {
             eventTable.getSelectionModel().selectFirst();
         } else {
@@ -316,20 +298,28 @@ public final class EventsController {
         }
     }
 
+    static EventDTO findPreferred(Iterable<EventDTO> candidates, Integer preferredId) {
+        if (preferredId == null) return null;
+        for (EventDTO candidate : candidates) {
+            if (candidate.id() == preferredId) return candidate;
+        }
+        return null;
+    }
+
     private void clearDetails() {
         selectedEvent = null;
-        eventTable.getSelectionModel().clearSelection();
-        emptyDetails.setText(filteredEvents.isEmpty() && !events.isEmpty()
-                ? "No events match the selected filters."
-                : "Select an event to view details and trading controls.");
+        methodDetails.getChildren().clear();
+        participantsArea.getChildren().clear();
         detailsContent.setVisible(false);
         detailsContent.setManaged(false);
+        emptyDetails.setText(filteredEvents.isEmpty() && !events.isEmpty()
+                ? "No events match the selected filters."
+                : "Load a market, then select an event to monitor it.");
         emptyDetails.setVisible(true);
         emptyDetails.setManaged(true);
     }
 
     private void showDetailsError(RuntimeException error) {
-        selectedEvent = null;
         detailsContent.setVisible(false);
         detailsContent.setManaged(false);
         emptyDetails.setText("Event details could not be loaded: " + messageOf(error));
@@ -337,11 +327,15 @@ public final class EventsController {
         emptyDetails.setManaged(true);
     }
 
-    private void setResultError(String message) {
-        if (!purchaseResult.getStyleClass().contains("error-message")) {
-            purchaseResult.getStyleClass().add("error-message");
-        }
-        purchaseResult.setText(message);
+    private static String compactQuantities(EventParticipantDTO dto, String first, String second) {
+        return first + ": " + dto.reservedSellByOption().get(first) + " / "
+                + dto.availableToSellByOption().get(first) + "  |  " + second + ": "
+                + dto.reservedSellByOption().get(second) + " / " + dto.availableToSellByOption().get(second);
+    }
+
+    private static String cashSummary(EventParticipantDTO dto) {
+        return "Paid " + format(dto.totalCashPaid()) + " | Received " + format(dto.totalCashReceived())
+                + " | Commission " + format(dto.totalCommissionPaid());
     }
 
     private static GridPane infoGrid() {
@@ -349,8 +343,9 @@ public final class EventsController {
         grid.setHgap(12);
         grid.setVgap(6);
         ColumnConstraints labels = new ColumnConstraints();
-        labels.setMinWidth(145);
+        labels.setMinWidth(130);
         ColumnConstraints values = new ColumnConstraints();
+        values.setMinWidth(0);
         values.setHgrow(Priority.ALWAYS);
         grid.getColumnConstraints().addAll(labels, values);
         return grid;
@@ -359,17 +354,33 @@ public final class EventsController {
     private static void addInfoRow(GridPane grid, int row, String label, Label value) {
         grid.add(new Label(label + ":"), 0, row);
         value.setMaxWidth(Double.MAX_VALUE);
+        value.setMinWidth(0);
         grid.add(value, 1, row);
     }
 
     private static VBox filterControl(String label, ComboBox<String> control) {
         control.setMaxWidth(Double.MAX_VALUE);
         VBox box = new VBox(3, new Label(label), control);
-        box.setPrefWidth(135);
+        box.setPrefWidth(145);
         return box;
     }
 
-    private static <T> TableColumn<T, Object> column(String title, Function<T, Object> value, double width) {
+    private static VBox labeled(String title, Node content) {
+        Label label = new Label(title);
+        label.getStyleClass().add("detail-subtitle");
+        VBox box = new VBox(6, label, content);
+        VBox.setVgrow(content, Priority.ALWAYS);
+        return box;
+    }
+
+    private static Label heading(String title) {
+        Label label = new Label(title);
+        label.getStyleClass().add("section-title");
+        return label;
+    }
+
+    private static <T> TableColumn<T, Object> column(
+            String title, Function<T, Object> value, double width) {
         TableColumn<T, Object> column = new TableColumn<>(title);
         column.setCellValueFactory(cell -> new ReadOnlyObjectWrapper<>(value.apply(cell.getValue())));
         column.setPrefWidth(width);
@@ -383,17 +394,8 @@ public final class EventsController {
         return pane;
     }
 
-    private static Tab futureTab(String title, String text) {
-        Label label = new Label(text);
-        label.setWrapText(true);
-        label.setPadding(new Insets(14));
-        return new Tab(title, label);
-    }
-
-    private static String format(double value) {
-        return String.format(Locale.US, "%.2f", value);
-    }
-
+    private static String format(double value) { return NUMBER.format(value); }
+    private static String formatNullable(Double value) { return value == null ? "N/A" : format(value); }
     private static String messageOf(Throwable error) {
         return error.getMessage() == null || error.getMessage().isBlank()
                 ? "The operation could not be completed." : error.getMessage();
