@@ -96,7 +96,6 @@ public final class LMSR implements TradingMethod {
     }
 
     void recordPurchase(Option option, int quantity) {
-        // TODO: This method is private and there is no way to record purchase outside of LMSR
         validateOption(option);
         validateQuantity(quantity);
 

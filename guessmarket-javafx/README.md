@@ -1,20 +1,7 @@
 # GuessMarket JavaFX client
 
-This module is the first JavaFX stage of Exercise 02. It depends on
-`guessmarket-core`; the core module has no dependency on JavaFX.
+This is the active Exercise 02 presentation module. It depends on passive `guessmarket-core` and uses JavaFX 25 controls with programmatic layouts (no FXML).
 
-## JavaFX setup
+For grading, use the assembled ZIP and `run.bat`; IntelliJ is not required. See the root README for architecture, launch, and implementation details.
 
-JavaFX is distributed separately from JDK 25. Install a JavaFX 25 SDK for your
-platform, then create an IntelliJ project library named `JavaFX 25` containing
-the SDK's `lib` directory. No SDK or machine-specific path is stored in this
-repository.
-
-Run `guessmarket.javafx.GuessMarketApplication` with these VM options, replacing
-the variable with the location of your own SDK:
-
-```text
---module-path "<JAVAFX_SDK>/lib" --add-modules javafx.controls --enable-native-access=javafx.graphics
-```
-
-The application uses JavaFX controls only; it does not require FXML.
+For source builds, use Java 25 and JavaFX 25. `build-submission.bat` accepts `JAVAFX_SDK` and `JAXB_HOME`, compiles both production modules, packages CSS, and assembles a portable Windows submission.

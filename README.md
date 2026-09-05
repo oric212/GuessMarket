@@ -1,50 +1,61 @@
-# GuessMarket
+# GuessMarket — Exercise 02
 
-GuessMarket is a **Java prediction market system** developed as part of a four-assignment Object-Oriented Programming project.
+GuessMarket is a Java 25 / JavaFX 25 prediction-market application. Exercise 02 adds multiple independent user accounts, Market Maker assignments, event lifecycle management, a two-sided Order Book, and a graphical interface while retaining LMSR.
 
-This repository contains **Exercise 01**, the first iteration of the project. The system is designed to evolve across four assignments, with each iteration extending the functionality and architecture introduced in the previous stage.
 
-## Current Features
+## Requirements and launch
 
-The first iteration implements the core prediction-market engine, including:
+The submitted package targets 64-bit Windows and requires Java 25. It bundles JavaFX 25 and JAXB runtime dependencies; IntelliJ is not required.
 
-* Loading market and event definitions from XML using **JAXB**
-* Validation of loaded market data
-* Event and option management
-* Share purchasing and trade history
-* Event lifecycle and settlement
-* Purchase-time and settlement-time commission models
-* DTO-based communication between the engine and presentation layer
+1. Extract the complete ZIP. Keep `lib` beside the JARs and `run.bat`.
+2. From Windows Command Prompt, run `"<extracted-directory>\run.bat"`. Paths containing spaces work.
+3. The launcher uses `%JAVA_HOME%\bin\java.exe` when `JAVA_HOME` is set, otherwise `java` from `PATH`, and checks for Java 25.
 
-## LMSR Market Maker
+The application loads Exercise 02 XML exclusively through **Load File**. A valid load replaces the current market; an invalid load reports its cause and preserves the previous market.
 
-GuessMarket uses the **Logarithmic Market Scoring Rule (LMSR)** as its trading mechanism.
+To reproduce the package, set `JAVAFX_SDK` to a JavaFX 25 SDK and `JAXB_HOME` to a JAXB RI directory containing `mod`, then run `build-submission.bat`. It recreates only `submission-build` and `submission`.
 
-The implementation dynamically calculates option prices according to the number of shares purchased and uses the LMSR cost function to determine the cost of new purchases.
+## Architecture
 
-The market maker also calculates the initial subsidy required for an event based on its liquidity parameter and available options.
+- `guessmarket-core`: passive, JavaFX-independent `Engine`, domain, XML/JAXB validation, immutable query DTOs, and result DTOs.
+- `guessmarket-javafx`: active UI. `GuessMarketApplication` starts JavaFX; `MainController` handles loading/refresh; `EventsController` monitors markets; `UsersController` exposes selected-user actions and participation details.
+- `guessmarket-console`: retained Exercise 01 client, not the Exercise 02 launch target.
 
-## Object-Oriented Design
+The JavaFX layer pulls immutable snapshots and invokes typed Engine operations. Core has no JavaFX properties, listeners, tasks, or callbacks. XML loading uses a JavaFX `Task`, visible progress, and a short simulated delay.
 
-The project is structured around separate responsibilities:
+## Users and Market Makers
 
-* **Engine** – coordinates application operations and exposes the market API
-* **Domain Model** – represents events, options, trades, accounts, commissions, and trading behavior
-* **DTOs** – transfer structured data without exposing mutable domain objects
-* **XML Loader** – converts JAXB-generated XML objects into validated application entities
+Every user has an independent balance and may be Market Maker for several events. Only the assigned MM starts or closes an event. A negative-causing transaction completes, then blocks that user from initiating operations; passive settlement credits remain possible. There is no top-up.
 
-Trading behavior is represented through a `TradingMethod` abstraction, with **LMSR** providing the trading implementation for this first assignment.
+The Users screen shows accounts, MM assignments, active/closed participations, personal LMSR history, Order Book holdings/accounting, and every event available for a first action. Successful actions refresh both screens.
 
-## Technologies
+## Trading methods
 
-* Java
-* Object-Oriented Programming
-* JAXB
-* XML / XSD
-* LMSR prediction-market algorithm
+LMSR startup transfers its calculated subsidy from the MM. Purchases use the LMSR cost function. Closing pays one unit per winning share, applies configured commission, and returns remaining subsidy to the MM.
 
-## Project Status
+Order Book events have independent option books with BUY/SELL price-time priority, partial/multi-order fills, SELL reservations, optional complementary minting, commissions, and backed settlement. Closing pays `d` per winning share, zero for losing shares, and drains the event account.
 
-This repository represents **Iteration 1 of 4**.
+## Implementation choices
 
-Future assignments build on the architecture and functionality introduced here, while this version focuses on establishing the core market engine, domain model, XML loading, trading logic, and event lifecycle.
+- Ordinary crossing executes at the resting order's price.
+- Auto-mint keeps the resting leg's offered price; the incoming leg is `d - resting price`.
+- OB holding value uses MID, otherwise LAST, otherwise `N/A`.
+- Non-divisible `initial / d` is rejected instead of truncating shares.
+- Cumulative gross purchase amount is historical spend, not remaining-position cost basis.
+- Closed OB P/L is `total cash received - total cash paid`; before closure it is unavailable.
+- No bonuses are claimed.
+
+## Main components
+
+- `Engine` / `GuessMarketEngine`: API, atomic replacement, DTO projection, persistence.
+- `XMLLoader`: JAXB conversion and Exercise 01/02 semantic validation.
+- `Event`: lifecycle, MM authorization, funding, trading coordination, commission, settlement.
+- `LMSR`: costs, prices, subsidy, quantities.
+- `OrderBook`: books, matching, partial fills, statistics, and mint planning.
+- `User` / `UserParticipation`: balance/block state, holdings, reservations, history, cash totals.
+- DTO packages: immutable presentation-safe snapshots with no mutable domain leakage.
+- `MainController`: FileChooser, Task/progress/error state, cross-screen refresh.
+- `EventsController`: composed filters and method-specific monitoring.
+- `UsersController`: selected-user workspace, MM actions, purchases/orders, and notifications.
+
+Framework-free regression programs live under the two test directories. The package ships production classes and CSS only and does not depend on IDE output or source directories.
