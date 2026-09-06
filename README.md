@@ -35,6 +35,10 @@ LMSR startup transfers its calculated subsidy from the MM. Purchases use the LMS
 
 Order Book events have independent option books with BUY/SELL price-time priority, partial/multi-order fills, SELL reservations, optional complementary minting, commissions, and backed settlement. Closing pays `d` per winning share, zero for losing shares, and drains the event account.
 
+## Skin bonus
+
+Skin switching starts disabled, preserving the original appearance. In the global header, select **Enable skins**, then choose **Default**, **Ocean**, or **Dusk** from the Skin selector. Clearing **Enable skins** immediately restores the original default skin on both Events and Users screens.
+
 ## Implementation choices
 
 - Ordinary crossing executes at the resting order's price.
@@ -43,7 +47,7 @@ Order Book events have independent option books with BUY/SELL price-time priorit
 - Non-divisible `initial / d` is rejected instead of truncating shares.
 - Cumulative gross purchase amount is historical spend, not remaining-position cost basis.
 - Closed OB P/L is `total cash received - total cash paid`; before closure it is unavailable.
-- No bonuses are claimed.
+- Bonus 1 (skin switching) is implemented in the JavaFX module.
 
 ## Main components
 

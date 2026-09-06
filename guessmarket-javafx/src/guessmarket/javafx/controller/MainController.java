@@ -1,6 +1,7 @@
 package guessmarket.javafx.controller;
 
 import guessmarket.api.Engine;
+import guessmarket.javafx.view.SkinTheme;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.NodeOrientation;
@@ -23,6 +24,8 @@ public final class MainController {
     private final EventsController eventsController;
     private final UsersController usersController;
     private final TabPane navigation = new TabPane();
+    private final CheckBox skinsEnabled = new CheckBox("Enable skins");
+    private final ComboBox<SkinTheme> skinSelector = new ComboBox<>();
 
     public MainController(Engine engine, Stage owner) {
         this.engine = engine;
@@ -64,12 +67,38 @@ public final class MainController {
         progress.setManaged(false);
         statusLabel.setWrapText(true);
 
+        skinSelector.getItems().setAll(SkinTheme.values());
+        skinSelector.setValue(SkinTheme.DEFAULT);
+        skinSelector.setDisable(true);
+        skinSelector.setId("skin-selector");
+        skinsEnabled.setId("skins-enabled");
+        skinsEnabled.setOnAction(event -> updateSkin());
+        skinSelector.setOnAction(event -> updateSkin());
+
+        Label skinLabel = new Label("Skin:");
+        HBox skinControls = new HBox(8, skinsEnabled, skinLabel, skinSelector);
+        skinControls.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        skinControls.getStyleClass().add("skin-controls");
+
         HBox fileRow = new HBox(10, loadButton, progress, new Label("Current file:"), pathLabel);
         fileRow.setFillHeight(true);
-        VBox header = new VBox(8, title, fileRow, statusLabel);
+        VBox header = new VBox(8, title, fileRow, statusLabel, skinControls);
         header.setPadding(new Insets(14, 18, 10, 18));
         header.getStyleClass().add("app-header");
         return header;
+    }
+
+    private void updateSkin() {
+        skinSelector.setDisable(!skinsEnabled.isSelected());
+        root.getStylesheets().removeIf(MainController::isSkinStylesheet);
+        SkinTheme theme = SkinTheme.effectiveTheme(skinsEnabled.isSelected(), skinSelector.getValue());
+        if (theme.stylesheet() != null) {
+            root.getStylesheets().add(MainController.class.getResource(theme.stylesheet()).toExternalForm());
+        }
+    }
+
+    private static boolean isSkinStylesheet(String stylesheet) {
+        return stylesheet.endsWith("/ocean.css") || stylesheet.endsWith("/dusk.css");
     }
 
     private void chooseAndLoadXml() {

@@ -1,0 +1,45 @@
+/* Dusk skin: a dark palette with a larger monospaced label treatment. */
+.root {
+    -fx-background-color: #25243a;
+    -fx-base: #34324d;
+    -fx-control-inner-background: #403e59;
+    -fx-accent: #f29f67;
+    -fx-text-background-color: #f4eefc;
+}
+
+.label {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 15px;
+    -fx-text-fill: #f4eefc;
+}
+
+.button {
+    -fx-background-color: #f29f67;
+    -fx-background-radius: 3px;
+    -fx-border-color: #ffc39b;
+    -fx-border-radius: 3px;
+    -fx-text-fill: #25243a;
+    -fx-font-weight: bold;
+    -fx-padding: 8px 15px;
+}
+
+.button:hover {
+    -fx-background-color: #ffb27d;
+}
+
+.app-header {
+    -fx-background-color: #302e48;
+    -fx-border-color: transparent transparent #8f6c91 transparent;
+}
+
+.app-title, .section-title, .detail-subtitle {
+    -fx-text-fill: #ffd1b3;
+}
+
+.tab-pane, .split-pane, .scroll-pane, .scroll-pane > .viewport {
+    -fx-background-color: #25243a;
+}
+
+.table-view, .list-view, .text-field, .combo-box, .choice-box, .tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #34324d;
+}
