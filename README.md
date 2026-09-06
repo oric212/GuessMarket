@@ -39,6 +39,10 @@ Order Book events have independent option books with BUY/SELL price-time priorit
 
 Skin switching starts disabled, preserving the original appearance. In the global header, select **Enable skins**, then choose **Default**, **Ocean**, or **Dusk** from the Skin selector. Clearing **Enable skins** immediately restores the original default skin on both Events and Users screens.
 
+## Animation bonus
+
+Animations also start disabled. Select **Enable animations** in the global header to enable a 250 ms screen fade when switching tabs, a 350 ms scale confirmation after a successful XML load, and a 300 ms fade confirmation after a successful user action. Clearing the checkbox bypasses all three effects; application actions and refreshes are never delayed by them.
+
 ## Implementation choices
 
 - Ordinary crossing executes at the resting order's price.
@@ -47,7 +51,7 @@ Skin switching starts disabled, preserving the original appearance. In the globa
 - Non-divisible `initial / d` is rejected instead of truncating shares.
 - Cumulative gross purchase amount is historical spend, not remaining-position cost basis.
 - Closed OB P/L is `total cash received - total cash paid`; before closure it is unavailable.
-- Bonus 1 (skin switching) is implemented in the JavaFX module.
+- Bonuses 1 (skin switching) and 2 (animations) are implemented in the JavaFX module.
 
 ## Main components
 

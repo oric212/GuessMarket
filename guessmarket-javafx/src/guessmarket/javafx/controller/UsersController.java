@@ -3,6 +3,8 @@ package guessmarket.javafx.controller;
 import guessmarket.api.Engine;
 import guessmarket.domain.OrderSide;
 import guessmarket.dto.*;
+import guessmarket.javafx.view.AnimationSettings;
+import javafx.animation.FadeTransition;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -11,10 +13,12 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.util.Duration;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.*;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -23,6 +27,7 @@ public final class UsersController {
             "0.##", DecimalFormatSymbols.getInstance(Locale.US));
     private final Engine engine;
     private final Runnable refreshApplication;
+    private final BooleanSupplier animationsEnabled;
     private final SplitPane root = new SplitPane();
     private final ObservableList<UserDTO> users = FXCollections.observableArrayList();
     private final TableView<UserDTO> userTable = new TableView<>(users);
@@ -59,9 +64,10 @@ public final class UsersController {
     private EventStateDTO selectedActionState;
     private Integer selectedParticipationEventId;
 
-    public UsersController(Engine engine, Runnable refreshApplication) {
+    public UsersController(Engine engine, Runnable refreshApplication, BooleanSupplier animationsEnabled) {
         this.engine = Objects.requireNonNull(engine);
         this.refreshApplication = Objects.requireNonNull(refreshApplication);
+        this.animationsEnabled = Objects.requireNonNull(animationsEnabled);
         configureUserTable();
         configureMarketMakerTable();
         configureParticipationTable();
@@ -493,6 +499,13 @@ public final class UsersController {
     private void showActionSuccess(String message) {
         actionResult.getStyleClass().remove("error-message");
         actionResult.setText(message);
+        actionResult.setOpacity(1.0);
+        if (!animationsEnabled.getAsBoolean()) return;
+        FadeTransition fade = new FadeTransition(
+                Duration.millis(AnimationSettings.ACTION_SUCCESS_FADE_MILLIS), actionResult);
+        fade.setFromValue(0.2);
+        fade.setToValue(1.0);
+        fade.play();
     }
 
     private void showActionError(String message) {

@@ -1,15 +1,20 @@
 package guessmarket.javafx.controller;
 
 import guessmarket.api.Engine;
+import guessmarket.javafx.view.AnimationSettings;
 import guessmarket.javafx.view.SkinTheme;
+import javafx.animation.FadeTransition;
+import javafx.animation.ScaleTransition;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.NodeOrientation;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.io.File;
 
@@ -26,12 +31,14 @@ public final class MainController {
     private final TabPane navigation = new TabPane();
     private final CheckBox skinsEnabled = new CheckBox("Enable skins");
     private final ComboBox<SkinTheme> skinSelector = new ComboBox<>();
+    private final CheckBox animationsEnabled = new CheckBox("Enable animations");
+    private final AnimationSettings animationSettings = new AnimationSettings();
 
     public MainController(Engine engine, Stage owner) {
         this.engine = engine;
         this.owner = owner;
         this.eventsController = new EventsController(engine);
-        this.usersController = new UsersController(engine, this::refreshApplication);
+        this.usersController = new UsersController(engine, this::refreshApplication, animationSettings::isEnabled);
         buildView();
     }
 
@@ -49,6 +56,8 @@ public final class MainController {
         usersTab.setClosable(false);
         navigation.getTabs().setAll(eventsTab, usersTab);
         navigation.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        navigation.getSelectionModel().selectedItemProperty().addListener(
+                (observable, previous, selected) -> animateTabSwitch(selected));
         root.setCenter(navigation);
     }
 
@@ -74,9 +83,11 @@ public final class MainController {
         skinsEnabled.setId("skins-enabled");
         skinsEnabled.setOnAction(event -> updateSkin());
         skinSelector.setOnAction(event -> updateSkin());
+        animationsEnabled.setId("animations-enabled");
+        animationsEnabled.setOnAction(event -> animationSettings.setEnabled(animationsEnabled.isSelected()));
 
         Label skinLabel = new Label("Skin:");
-        HBox skinControls = new HBox(8, skinsEnabled, skinLabel, skinSelector);
+        HBox skinControls = new HBox(8, skinsEnabled, skinLabel, skinSelector, animationsEnabled);
         skinControls.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         skinControls.getStyleClass().add("skin-controls");
 
@@ -133,6 +144,7 @@ public final class MainController {
             pathLabel.getTooltip().setText(file.getAbsolutePath());
             statusLabel.setText("Market loaded successfully.");
             refreshApplication();
+            animateXmlSuccess();
         });
         loadTask.setOnFailed(event -> {
             finishLoading();
@@ -143,6 +155,31 @@ public final class MainController {
         Thread worker = new Thread(loadTask, "guessmarket-xml-loader");
         worker.setDaemon(true);
         worker.start();
+    }
+
+    private void animateTabSwitch(Tab selected) {
+        if (selected == null) return;
+        Node content = selected.getContent();
+        content.setOpacity(1.0);
+        if (!animationSettings.isEnabled()) return;
+        FadeTransition fade = new FadeTransition(
+                Duration.millis(AnimationSettings.TAB_FADE_MILLIS), content);
+        fade.setFromValue(0.25);
+        fade.setToValue(1.0);
+        fade.play();
+    }
+
+    private void animateXmlSuccess() {
+        statusLabel.setScaleX(1.0);
+        statusLabel.setScaleY(1.0);
+        if (!animationSettings.isEnabled()) return;
+        ScaleTransition scale = new ScaleTransition(
+                Duration.millis(AnimationSettings.XML_SUCCESS_SCALE_MILLIS), statusLabel);
+        scale.setFromX(0.96);
+        scale.setFromY(0.96);
+        scale.setToX(1.0);
+        scale.setToY(1.0);
+        scale.play();
     }
 
     private void refreshApplication() {
