@@ -43,6 +43,10 @@ Skin switching starts disabled, preserving the original appearance. In the globa
 
 Animations also start disabled. Select **Enable animations** in the global header to enable a 250 ms screen fade when switching tabs, a 350 ms scale confirmation after a successful XML load, and a 300 ms fade confirmation after a successful user action. Clearing the checkbox bypasses all three effects; application actions and refreshes are never delayed by them.
 
+## Create Event bonus
+
+Select a user on the Users screen and complete the **Create Event** section to create an LMSR or Order Book event. The selected user becomes its Market Maker, and the new `NOT_STARTED` event immediately appears in the normal event and MM views so it can be started through the existing workflow.
+
 ## Implementation choices
 
 - Ordinary crossing executes at the resting order's price.
@@ -51,7 +55,7 @@ Animations also start disabled. Select **Enable animations** in the global heade
 - Non-divisible `initial / d` is rejected instead of truncating shares.
 - Cumulative gross purchase amount is historical spend, not remaining-position cost basis.
 - Closed OB P/L is `total cash received - total cash paid`; before closure it is unavailable.
-- Bonuses 1 (skin switching) and 2 (animations) are implemented in the JavaFX module.
+- Bonuses 1 (skin switching), 2 (animations), and 4 (Create Event) are implemented.
 
 ## Main components
 

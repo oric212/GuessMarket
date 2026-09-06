@@ -1,7 +1,9 @@
 package guessmarket.javafx.controller;
 
 import guessmarket.api.Engine;
+import guessmarket.domain.CommissionMethod;
 import guessmarket.domain.OrderSide;
+import guessmarket.domain.TradingMethodType;
 import guessmarket.dto.*;
 import guessmarket.javafx.view.AnimationSettings;
 import javafx.animation.FadeTransition;
@@ -59,6 +61,21 @@ public final class UsersController {
     private final VBox closePane = new VBox(6);
     private final VBox lmsrPane = new VBox(6);
     private final VBox orderBookPane = new VBox(6);
+    private final TextField createName = new TextField();
+    private final TextArea createDescription = new TextArea();
+    private final TextField createOptionOne = new TextField();
+    private final TextField createOptionTwo = new TextField();
+    private final ComboBox<TradingMethodType> createMethod = new ComboBox<>();
+    private final ComboBox<CommissionMethod> createCommissionMethod = new ComboBox<>();
+    private final TextField createCommissionPercentage = new TextField();
+    private final TextField createLmsrB = new TextField();
+    private final TextField createOrderBookD = new TextField();
+    private final TextField createOrderBookInitial = new TextField();
+    private final CheckBox createAllowMint = new CheckBox("Allow mint");
+    private final VBox createLmsrFields = new VBox(7);
+    private final VBox createOrderBookFields = new VBox(7);
+    private final Button createEventButton = new Button("Create Event");
+    private final Label createEventResult = new Label();
     private UserDTO selectedUser;
     private EventDTO selectedActionEvent;
     private EventStateDTO selectedActionState;
@@ -73,6 +90,7 @@ public final class UsersController {
         configureParticipationTable();
         configureActionEventTable();
         configureActions();
+        configureCreateEvent();
         root.getItems().addAll(buildUserBrowser(), buildWorkspace());
         root.setDividerPositions(0.32);
     }
@@ -122,6 +140,7 @@ public final class UsersController {
 
         detailsContent.getChildren().addAll(
                 titled("Account", new VBox(8, account, blockedWarning)),
+                titled("Create Event", buildCreateEventForm()),
                 titled("Market Maker assignments", marketMakerEvents),
                 titled("Participations", new VBox(8, participations, participationDetails)),
                 titled("Select an event / Actions", new VBox(10, actionEvents, eventContext, actionArea)));
@@ -135,6 +154,130 @@ public final class UsersController {
         scroll.setFitToWidth(true);
         scroll.setPannable(true);
         return scroll;
+    }
+
+    private Parent buildCreateEventForm() {
+        GridPane common = infoGrid();
+        addFormRow(common, 0, "Event name", createName);
+        addFormRow(common, 1, "Description", createDescription);
+        addFormRow(common, 2, "Option 1", createOptionOne);
+        addFormRow(common, 3, "Option 2", createOptionTwo);
+        addFormRow(common, 4, "Trading method", createMethod);
+        addFormRow(common, 5, "Commission method", createCommissionMethod);
+        addFormRow(common, 6, "Commission percentage", createCommissionPercentage);
+
+        createLmsrFields.getChildren().setAll(
+                sectionLabel("LMSR settings"), flow(new Label("Liquidity parameter (b)"), createLmsrB));
+        createOrderBookFields.getChildren().setAll(
+                sectionLabel("Order Book settings"),
+                flow(new Label("d"), createOrderBookD, new Label("Initial"),
+                        createOrderBookInitial, createAllowMint));
+        createEventResult.setWrapText(true);
+        createEventResult.getStyleClass().add("result-message");
+        VBox form = new VBox(10, common, createLmsrFields, createOrderBookFields,
+                createEventButton, createEventResult);
+        form.setFillWidth(true);
+        return form;
+    }
+
+    private void configureCreateEvent() {
+        createName.setPromptText("Event name");
+        createDescription.setPromptText("Event description");
+        createDescription.setPrefRowCount(2);
+        createDescription.setWrapText(true);
+        createOptionOne.setPromptText("First option");
+        createOptionTwo.setPromptText("Second option");
+        createCommissionPercentage.setPromptText("0-90");
+        createLmsrB.setPromptText("Positive whole number");
+        createOrderBookD.setPromptText("Positive whole number");
+        createOrderBookInitial.setPromptText("Non-negative whole number");
+        createMethod.getItems().setAll(TradingMethodType.values());
+        createMethod.setValue(TradingMethodType.LMSR);
+        createCommissionMethod.getItems().setAll(CommissionMethod.values());
+        createCommissionMethod.setValue(CommissionMethod.ON_PURCHASE);
+        createMethod.setOnAction(event -> updateCreateMethodFields());
+        createEventButton.setOnAction(event -> createEvent());
+        updateCreateMethodFields();
+    }
+
+    private void updateCreateMethodFields() {
+        boolean lmsr = createMethod.getValue() == TradingMethodType.LMSR;
+        setShown(createLmsrFields, lmsr);
+        setShown(createOrderBookFields, !lmsr);
+    }
+
+    private void createEvent() {
+        try {
+            CreateEventRequest request = buildCreateEventRequest(
+                    username(), createName.getText(), createDescription.getText(),
+                    createOptionOne.getText(), createOptionTwo.getText(), createMethod.getValue(),
+                    createCommissionMethod.getValue(), createCommissionPercentage.getText(),
+                    createLmsrB.getText(), createOrderBookD.getText(),
+                    createOrderBookInitial.getText(), createAllowMint.isSelected());
+            EventStateDTO created = createAndRefresh(engine, refreshApplication, request);
+            showCreateEventResult("Created event '" + created.eventName() + "' with ID "
+                    + created.id() + ". It is ready for its Market Maker to start.", false);
+        } catch (RuntimeException error) {
+            showCreateEventResult(messageOf(error), true);
+        }
+    }
+
+    static CreateEventRequest buildCreateEventRequest(
+            String creatorUsername, String eventName, String description,
+            String optionOne, String optionTwo, TradingMethodType tradingMethod,
+            CommissionMethod commissionMethod, String commissionPercentage,
+            String lmsrB, String orderBookD, String orderBookInitial, boolean allowMint) {
+        requireText(creatorUsername, "Select a creator.");
+        requireText(eventName, "Event name is required.");
+        requireText(description, "Description is required.");
+        requireText(optionOne, "Option 1 is required.");
+        requireText(optionTwo, "Option 2 is required.");
+        if (tradingMethod == null) throw new IllegalArgumentException("Select a trading method.");
+        if (commissionMethod == null) throw new IllegalArgumentException("Select a commission method.");
+
+        int commission = parseWholeNumber(commissionPercentage, "Commission percentage");
+        CreateEventRequest.TradingConfiguration configuration = switch (tradingMethod) {
+            case LMSR -> new CreateEventRequest.LmsrConfiguration(
+                    parseWholeNumber(lmsrB, "Liquidity parameter (b)"));
+            case ORDER_BOOK -> new CreateEventRequest.OrderBookConfiguration(
+                    parseWholeNumber(orderBookD, "Order Book d"),
+                    parseWholeNumber(orderBookInitial, "Order Book initial"), allowMint);
+        };
+        return new CreateEventRequest(creatorUsername, eventName.trim(), description.trim(),
+                List.of(optionOne.trim(), optionTwo.trim()), commissionMethod, commission, configuration);
+    }
+
+    static EventStateDTO createAndRefresh(
+            Engine engine, Runnable refreshApplication, CreateEventRequest request) {
+        EventStateDTO created = engine.createEvent(request);
+        refreshApplication.run();
+        return created;
+    }
+
+    private static void requireText(String value, String message) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(message);
+    }
+
+    private static int parseWholeNumber(String value, String label) {
+        requireText(value, label + " is required.");
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException(label + " must be a whole number.");
+        }
+    }
+
+    private void showCreateEventResult(String message, boolean error) {
+        createEventResult.getStyleClass().remove("error-message");
+        if (error) createEventResult.getStyleClass().add("error-message");
+        createEventResult.setText(message);
+        createEventResult.setOpacity(1.0);
+        if (error || !animationsEnabled.getAsBoolean()) return;
+        FadeTransition fade = new FadeTransition(
+                Duration.millis(AnimationSettings.ACTION_SUCCESS_FADE_MILLIS), createEventResult);
+        fade.setFromValue(0.2);
+        fade.setToValue(1.0);
+        fade.play();
     }
 
     private void configureUserTable() {
@@ -222,6 +365,7 @@ public final class UsersController {
                     + "Participation history and settlement credits remain visible.");
             blockedWarning.setVisible(selectedUser.blocked());
             blockedWarning.setManaged(selectedUser.blocked());
+            createEventButton.setDisable(selectedUser.blocked());
 
             List<EventDTO> allEvents = engine.getEventSummaries();
             Map<Integer, EventDTO> byId = allEvents.stream().collect(Collectors.toMap(EventDTO::id, Function.identity()));
@@ -590,6 +734,12 @@ public final class UsersController {
     private static void addInfoRow(GridPane grid, int row, String name, Label value) {
         grid.add(new Label(name + ":"), 0, row); value.setWrapText(true); value.setMinWidth(0); grid.add(value, 1, row);
     }
+    private static void addFormRow(GridPane grid, int row, String name, Control value) {
+        grid.add(new Label(name + ":"), 0, row);
+        value.setMaxWidth(Double.MAX_VALUE);
+        value.setMinWidth(0);
+        grid.add(value, 1, row);
+    }
     private static <T> void configureTable(TableView<T> table, String placeholder) {
         table.setPlaceholder(new Label(placeholder));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
@@ -602,7 +752,7 @@ public final class UsersController {
     private static TitledPane titled(String name, Parent content) {
         TitledPane pane = new TitledPane(name, content); pane.setCollapsible(false); pane.setMaxWidth(Double.MAX_VALUE); return pane;
     }
-    private static String messageOf(Throwable error) {
+    static String messageOf(Throwable error) {
         return error.getMessage() == null || error.getMessage().isBlank()
                 ? "The operation could not be completed." : error.getMessage();
     }
