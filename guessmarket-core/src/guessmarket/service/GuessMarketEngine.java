@@ -135,6 +135,79 @@ public class GuessMarketEngine implements Engine, Serializable {
         return createUserDTO(user);
     }
 
+    @Override
+    public EventStateDTO createEvent(CreateEventRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Create event request cannot be null");
+        }
+
+        User creator = requireUser(request.creatorUsername());
+        if (creator.isBlocked()) {
+            throw new IllegalStateException("User " + creator.getUsername() + " is blocked");
+        }
+
+        validateNewEventOptions(request.options());
+        List<Option> options = createOptions(request.options());
+        TradingMethod tradingMethod = createTradingMethod(request.tradingConfiguration(), options);
+        int eventId = nextAvailableEventId();
+
+        Event event = new Event(
+                eventId,
+                request.eventName(),
+                request.description(),
+                request.commissionPercentage(),
+                request.commissionMethod(),
+                options,
+                tradingMethod,
+                new Account(0),
+                creator);
+
+        eventsById.put(eventId, event);
+        return getEventState(eventId);
+    }
+
+    private void validateNewEventOptions(List<String> optionNames) {
+        if (optionNames == null || optionNames.size() != 2) {
+            throw new IllegalArgumentException("An event must contain exactly two options");
+        }
+        Set<String> normalizedNames = new HashSet<>();
+        for (String optionName : optionNames) {
+            if (optionName == null || optionName.isBlank()) {
+                throw new IllegalArgumentException("Option name cannot be null or blank");
+            }
+            if (!normalizedNames.add(optionName.trim().toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("Event option names must be distinct");
+            }
+        }
+    }
+
+    private TradingMethod createTradingMethod(
+            CreateEventRequest.TradingConfiguration configuration,
+            List<Option> options) {
+        if (configuration == null) {
+            throw new IllegalArgumentException("Trading configuration cannot be null");
+        }
+        return switch (configuration) {
+            case CreateEventRequest.LmsrConfiguration lmsr ->
+                    new LMSR(lmsr.liquidityParameter(), options);
+            case CreateEventRequest.OrderBookConfiguration orderBook -> {
+                OrderBook created = new OrderBook(
+                        orderBook.allowMint(), orderBook.initial(), orderBook.d(), options);
+                if (orderBook.initial() % orderBook.d() != 0) {
+                    throw new IllegalArgumentException("Order Book initial amount must be divisible by d");
+                }
+                yield created;
+            }
+        };
+    }
+
+    private int nextAvailableEventId() {
+        for (int candidate = 1; candidate > 0; candidate++) {
+            if (!eventsById.containsKey(candidate)) return candidate;
+        }
+        throw new IllegalStateException("No event IDs are available");
+    }
+
     private UserDTO createUserDTO(User user) {
         List<Integer> marketMakerEventIds = eventsById.values().stream()
                 .filter(event -> event.hasMarketMaker(user))

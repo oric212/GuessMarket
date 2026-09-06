@@ -1,6 +1,7 @@
 package guessmarket.api;
 
 import guessmarket.dto.EventDTO;
+import guessmarket.dto.CreateEventRequest;
 import guessmarket.dto.EventStateDTO;
 import guessmarket.dto.PurchaseResultDTO;
 import guessmarket.dto.UserDTO;
@@ -20,6 +21,8 @@ public interface Engine {
     List<UserDTO> getUsers();
 
     UserDTO getUser(String username);
+
+    EventStateDTO createEvent(CreateEventRequest request);
 
     EventStateDTO startEvent(String username, int eventId);
 
