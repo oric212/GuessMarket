@@ -30,6 +30,7 @@ public final class DtoQueryRegressionTest {
         engine.purchaseShares("Buyer", 1, 2, 3);
         EventStateDTO state = engine.getEventState(1);
         check(state.lmsrDetails() != null && state.orderBookDetails() == null, "Wrong LMSR detail shape");
+        check(state.lmsrDetails().liquidityParameter() == 10, "LMSR liquidity parameter is missing");
         check(state.optionStateDTOList().size() == 2, "Legacy LMSR option state was not preserved");
         check(state.trades().getFirst().boughtOptionName().equals("No"), "Global trades are not newest first");
         UserParticipationDTO participation = participation(engine, "Buyer");

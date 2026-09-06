@@ -482,6 +482,8 @@ public final class UsersController {
         addInfoRow(common, 4, "Options", new Label(String.join(" / ", state.options())));
         VBox context = new VBox(8, common);
         if (state.lmsrDetails() != null) {
+            context.getChildren().add(new Label(
+                    "Liquidity parameter (b): " + state.lmsrDetails().liquidityParameter()));
             context.getChildren().add(new Label(state.lmsrDetails().options().stream()
                     .map(option -> option.optionName() + " "
                             + LmsrValueFormatter.format(option.currentOptionValue()))

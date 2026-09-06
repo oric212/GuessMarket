@@ -153,6 +153,13 @@ public final class Event implements Serializable {
         return orderBook.snapshot();
     }
 
+    public int getLmsrLiquidityParameter() {
+        if (!(tradingMethod instanceof LMSR lmsr)) {
+            throw new IllegalStateException("Event does not use LMSR trading");
+        }
+        return lmsr.getLiquidityParameter();
+    }
+
     public double getAccountBalance() {
         return account.getBalance();
     }

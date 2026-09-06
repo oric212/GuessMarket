@@ -153,6 +153,7 @@ public final class EventsController {
         trades.getItems().setAll(details.trades());
         trades.setPrefHeight(190);
         return titled("LMSR market details", new VBox(10,
+                new Label("Liquidity parameter (b): " + details.liquidityParameter()),
                 labeled("Options", options), labeled("Global trade history — newest first", trades)));
     }
 

@@ -37,6 +37,10 @@ public final class LMSR implements TradingMethod {
         return options;
     }
 
+    public int getLiquidityParameter() {
+        return liquidityParameter;
+    }
+
     public double calculateCurrentValue(Option option) {
 
         if (!options.contains(option)) {

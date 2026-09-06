@@ -269,7 +269,8 @@ public class GuessMarketEngine implements Engine, Serializable {
         List<OptionStateDTO> optionStateDTOs = createOptionStateDtoList(requestedEvent);
         List<TradeDTO> tradeDTOs = createTradeDTOList(requestedEvent);
         LmsrDetailsDTO lmsrDetails = requestedEvent.getTradingMethodType() == TradingMethodType.LMSR
-                ? new LmsrDetailsDTO(optionStateDTOs, tradeDTOs) : null;
+                ? new LmsrDetailsDTO(
+                        requestedEvent.getLmsrLiquidityParameter(), optionStateDTOs, tradeDTOs) : null;
         OrderBookDetailsDTO orderBookDetails = requestedEvent.getTradingMethodType() == TradingMethodType.ORDER_BOOK
                 ? createOrderBookDetails(requestedEvent) : null;
         List<EventParticipantDTO> participants = requestedEvent.getParticipants().stream()
