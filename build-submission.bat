@@ -23,7 +23,7 @@ if errorlevel 1 exit /b 1
 dir /s /b "guessmarket-javafx\src\*.java" > "submission-build\javafx-sources.txt"
 "%JAVAC%" -cp "submission-build\core;%JAXB_HOME%\mod\*;%JAVAFX_SDK%\lib\*" -d "submission-build\javafx" @"submission-build\javafx-sources.txt"
 if errorlevel 1 exit /b 1
-xcopy /e /i /y "guessmarket-javafx\src\guessmarket\javafx\view" "submission-build\javafx\guessmarket\javafx\view" >nul
+copy /y "guessmarket-javafx\src\guessmarket\javafx\view\*.css" "submission-build\javafx\guessmarket\javafx\view\" >nul
 "%JAR%" --create --file "submission\GuessMarket-Core.jar" -C "submission-build\core" .
 if errorlevel 1 exit /b 1
 "%JAR%" --create --file "submission\GuessMarket-JavaFX.jar" --main-class guessmarket.javafx.GuessMarketApplication -C "submission-build\javafx" .

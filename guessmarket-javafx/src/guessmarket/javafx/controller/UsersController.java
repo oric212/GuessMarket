@@ -6,6 +6,7 @@ import guessmarket.domain.OrderSide;
 import guessmarket.domain.TradingMethodType;
 import guessmarket.dto.*;
 import guessmarket.javafx.view.AnimationSettings;
+import guessmarket.javafx.view.LmsrValueFormatter;
 import javafx.animation.FadeTransition;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
@@ -482,7 +483,8 @@ public final class UsersController {
         VBox context = new VBox(8, common);
         if (state.lmsrDetails() != null) {
             context.getChildren().add(new Label(state.lmsrDetails().options().stream()
-                    .map(option -> option.optionName() + " " + format(option.currentOptionValue()))
+                    .map(option -> option.optionName() + " "
+                            + LmsrValueFormatter.format(option.currentOptionValue()))
                     .collect(Collectors.joining(" | ", "Current prices: ", ""))));
         } else if (state.orderBookDetails() != null) {
             context.getChildren().add(new Label("d: " + state.orderBookDetails().d()

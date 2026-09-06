@@ -2,6 +2,7 @@ package guessmarket.javafx.controller;
 
 import guessmarket.api.Engine;
 import guessmarket.dto.*;
+import guessmarket.javafx.view.LmsrValueFormatter;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -139,7 +140,8 @@ public final class EventsController {
         TableView<OptionStateDTO> options = new TableView<>();
         configureTable(options, "No LMSR option state is available.");
         options.getColumns().add(column("Option", OptionStateDTO::optionName, 150));
-        options.getColumns().add(column("Current value", dto -> format(dto.currentOptionValue()), 120));
+        options.getColumns().add(column(
+                "Current value", dto -> LmsrValueFormatter.format(dto.currentOptionValue()), 120));
         options.getColumns().add(column("Total purchased", OptionStateDTO::quantityBought, 125));
         options.getItems().setAll(details.options());
         options.setPrefHeight(150);
