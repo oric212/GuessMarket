@@ -47,6 +47,22 @@ public final class CreateEventWorkflowTest {
                 "SelectedUser", " ", "Description", "Yes", "No", TradingMethodType.LMSR,
                 CommissionMethod.ON_PURCHASE, "5", "10", "", "", false),
                 "Event name is required");
+        expectFailure(() -> UsersController.buildCreateEventRequest(
+                "SelectedUser", "Event", " ", "Yes", "No", TradingMethodType.LMSR,
+                CommissionMethod.ON_PURCHASE, "5", "10", "", "", false),
+                "Description is required");
+        expectFailure(() -> UsersController.buildCreateEventRequest(
+                "SelectedUser", "Event", "Description", " ", "No", TradingMethodType.LMSR,
+                CommissionMethod.ON_PURCHASE, "5", "10", "", "", false),
+                "Option 1 is required");
+        expectFailure(() -> UsersController.buildCreateEventRequest(
+                "SelectedUser", "Event", "Description", "Yes", " ", TradingMethodType.LMSR,
+                CommissionMethod.ON_PURCHASE, "5", "10", "", "", false),
+                "Option 2 is required");
+        expectFailure(() -> UsersController.buildCreateEventRequest(
+                "SelectedUser", "Event", "Description", "Yes", "No", TradingMethodType.LMSR,
+                CommissionMethod.ON_PURCHASE, "not-a-number", "10", "", "", false),
+                "Commission percentage must be a whole number");
     }
 
     private static void successfulCreationRefreshesVisibleData() throws Exception {
