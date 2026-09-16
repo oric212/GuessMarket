@@ -248,6 +248,9 @@ public class ConsoleUI implements UserInterface {
 
             showEventState(eventId);
 
+            System.out.println("Please enter your username:");
+            String username = scanner.nextLine().trim();
+
             System.out.println("Please enter an option number:");
             int optionChoice = readOptionChoice();
 
@@ -256,7 +259,7 @@ public class ConsoleUI implements UserInterface {
 
             PurchaseResultDTO purchaseResult =
                     engine.purchaseShares(
-                            eventId, optionChoice, quantity);
+                            username, eventId, optionChoice, quantity);
 
             printPurchaseResultDTO(purchaseResult);
 
@@ -287,11 +290,14 @@ public class ConsoleUI implements UserInterface {
             int eventId = getEventChoiceFromUser();
             showEventState(eventId);
 
+            System.out.println("Please enter the Market Maker username:");
+            String username = scanner.nextLine().trim();
+
             System.out.println("Please enter the winning option number:");
             int optionChoice = readOptionChoice();
 
             EventStateDTO closedEvent =
-                    engine.closeEvent(eventId, optionChoice);
+                    engine.closeEvent(username, eventId, optionChoice);
 
             printEventStateDTO(closedEvent);
 

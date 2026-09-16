@@ -12,4 +12,7 @@ public record EventXmlData(
         List<String> options,
         TradingMethodXmlData tradingMethod
 ) implements Serializable {
+    public EventXmlData {
+        options = List.copyOf(options);
+    }
 }

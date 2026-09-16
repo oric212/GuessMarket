@@ -1,0 +1,39 @@
+/* Ocean skin: cool, high-contrast colors with a wider humanist typeface. */
+.root {
+    -fx-background-color: #e5f5f9;
+    -fx-base: #d9eef3;
+    -fx-control-inner-background: #f7fcfd;
+    -fx-accent: #087e8b;
+}
+
+.label {
+    -fx-font-family: "Trebuchet MS";
+    -fx-font-size: 14px;
+}
+
+.button {
+    -fx-background-color: linear-gradient(to bottom, #18a6b5, #087e8b);
+    -fx-background-radius: 8px;
+    -fx-border-color: #05636d;
+    -fx-border-radius: 8px;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 7px 14px;
+}
+
+.button:hover {
+    -fx-background-color: linear-gradient(to bottom, #25b9c8, #0a8f9d);
+}
+
+.app-header {
+    -fx-background-color: #c9e9ef;
+    -fx-border-color: transparent transparent #63b7c2 transparent;
+}
+
+.app-title, .section-title {
+    -fx-text-fill: #07525b;
+}
+
+.tab-pane, .split-pane, .scroll-pane, .scroll-pane > .viewport {
+    -fx-background-color: #e5f5f9;
+}

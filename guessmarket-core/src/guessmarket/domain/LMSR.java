@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class LMSR implements TradingMethod, Serializable {
+public final class LMSR implements TradingMethod {
     private final int liquidityParameter;
     private final List<Option> options;
     private final Map<Option, Integer> quantitiesByOption;
@@ -35,6 +35,10 @@ public final class LMSR implements TradingMethod, Serializable {
 
     public List<Option> getOptions() {
         return options;
+    }
+
+    public int getLiquidityParameter() {
+        return liquidityParameter;
     }
 
     public double calculateCurrentValue(Option option) {
@@ -96,7 +100,6 @@ public final class LMSR implements TradingMethod, Serializable {
     }
 
     void recordPurchase(Option option, int quantity) {
-        // TODO: This method is private and there is no way to record purchase outside of LMSR
         validateOption(option);
         validateQuantity(quantity);
 
@@ -128,4 +131,8 @@ public final class LMSR implements TradingMethod, Serializable {
         return quantitiesByOption.get(option);
     }
 
+    @Override
+    public TradingMethodType getType() {
+        return TradingMethodType.LMSR;
+    }
 }
