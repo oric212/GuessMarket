@@ -17,6 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public final class Ex03XmlUploadTest {
     public static void main(String[] args) throws Exception {
+        schemaCompliantVariantsLoad();
+        schemaInvalidDocumentsAreRejectedAtomically();
         validMultiEventUploadAndMarketMaker();
         cumulativeUploadsPreserveExistingEvents();
         duplicateAndInvalidUploadsAreAtomic();
@@ -25,16 +27,70 @@ public final class Ex03XmlUploadTest {
         System.out.println("Ex03XmlUploadTest: all checks passed");
     }
 
+    private static void schemaCompliantVariantsLoad() {
+        ServerState state = new ServerState();
+        String token = new UserApiService(state).login("Schema User").sessionToken();
+        UploadResponse minimal = upload(state, token, market(lmsr("Minimal", 1, "Yes", "No")));
+        check(minimal.eventsAdded() == 1, "Minimal EX03 document did not load");
+        upload(state, token, market(lmsr("LMSR", 25, "Up", "Down")));
+        upload(state, token, market(orderBook("Order Book", 10, 100, false, "A", "B")));
+        upload(state, token, market(lmsr("Two Options", 5, "First", "Second")));
+        check(new EventApiService(state).summaries().size() == 4,
+                "Schema-compliant LMSR, Order Book, or multi-option XML failed");
+    }
+
+    private static void schemaInvalidDocumentsAreRejectedAtomically() {
+        ServerState state = new ServerState();
+        String token = new UserApiService(state).login("Schema User").sessionToken();
+        upload(state, token, market(lmsr("Baseline", 10, "A", "B")));
+        int baseline = new EventApiService(state).summaries().size();
+
+        expectInvalidXml(state, token, market(
+                "<GM-event name=\"Missing Description\">"
+                        + "<commission type=\"on-close\">5</commission>"
+                        + options("A", "B")
+                        + "<GM-method><GM-LMSR><b>10</b></GM-LMSR></GM-method></GM-event>"));
+        expectInvalidXml(state, token, market(
+                "<GM-event name=\"Bad Attribute\"><description>Bad</description>"
+                        + "<commission type=\"sometimes\">5</commission>"
+                        + options("A", "B")
+                        + "<GM-method><GM-LMSR><b>10</b></GM-LMSR></GM-method></GM-event>"));
+        expectInvalidXml(state, token, market(
+                "<GM-event name=\"Wrong Order\"><commission type=\"on-close\">5</commission>"
+                        + "<description>Bad</description>" + options("A", "B")
+                        + "<GM-method><GM-LMSR><b>10</b></GM-LMSR></GM-method></GM-event>"));
+        expectInvalidXml(state, token,
+                market(lmsr("Old Users", 10, "A", "B"))
+                        .replace("</Guess-Market>", "<GM-users/></Guess-Market>"));
+        expectInvalidXml(state, token, market(
+                "<GM-event name=\"Old Id\"><id>7</id><description>Bad</description>"
+                        + "<commission type=\"on-close\">5</commission>" + options("A", "B")
+                        + "<GM-method><GM-LMSR><b>10</b></GM-LMSR></GM-method></GM-event>"));
+        expectInvalidXml(state, token, "<Guess-Market><GM-events>");
+        expectInvalidXml(state, token, market(lmsr("Too Many", 10, "A", "B", "C")));
+        expectInvalidXml(state, token, market(
+                lmsr("Would Be Partial", 10, "A", "B"),
+                "<GM-event name=\"Broken Second\"><description>Bad</description>"
+                        + "<commission type=\"on-close\">5</commission>" + options("A", "B")
+                        + "<GM-method><GM-order-book initial=\"100\" d=\"10\"/>"
+                        + "</GM-method></GM-event>"));
+
+        check(new EventApiService(state).summaries().size() == baseline,
+                "Schema-invalid upload partially modified event state");
+        check(new UserApiService(state).currentUser(token).marketMakerEventIds().size() == baseline,
+                "Schema-invalid upload partially modified MM state");
+    }
+
     private static void validMultiEventUploadAndMarketMaker() {
         ServerState state = new ServerState();
         LoginResponse login = new UserApiService(state).login("Uploader");
         UploadResponse response = upload(state, login.sessionToken(), market(
-                lmsr("Weather", 5, "Sunny", "Cloudy", "Rainy"),
+                lmsr("Weather", 5, "Sunny", "Rainy"),
                 orderBook("Election", 10, 100, true, "Yes", "No")));
         check(response.eventsAdded() == 2, "Valid upload did not add every event");
         List<EventDTO> events = new EventApiService(state).summaries();
         check(events.size() == 2 && events.get(0).options().equals(
-                List.of("Sunny", "Cloudy", "Rainy")), "Multi-option order was not preserved");
+                List.of("Sunny", "Rainy")), "Option order was not preserved");
         check(events.stream().allMatch(event -> event.marketMakerUsername().equals("Uploader")
                 && event.eventState().equals("NOT_STARTED") && event.currentEventAccountBalance() == 0.0),
                 "Uploader/MM or initial lifecycle state is wrong");
@@ -47,7 +103,7 @@ public final class Ex03XmlUploadTest {
         ServerState state = new ServerState();
         String token = new UserApiService(state).login("Uploader").sessionToken();
         upload(state, token, market(lmsr("First", 10, "A", "B")));
-        upload(state, token, market(lmsr("Second", 10, "X", "Y", "Z")));
+        upload(state, token, market(lmsr("Second", 10, "X", "Y")));
         check(new EventApiService(state).summaries().stream().map(EventDTO::eventName).toList()
                         .equals(List.of("First", "Second")),
                 "Later upload replaced or reordered existing events");
@@ -170,6 +226,10 @@ public final class Ex03XmlUploadTest {
             check(expected.status() == status && expected.code().equals(code),
                     "Unexpected API failure: " + expected.code() + " / " + expected.getMessage());
         }
+    }
+
+    private static void expectInvalidXml(ServerState state, String token, String xml) {
+        expectFailure(() -> upload(state, token, xml), 400, "INVALID_XML");
     }
 
     private static void check(boolean condition, String message) {

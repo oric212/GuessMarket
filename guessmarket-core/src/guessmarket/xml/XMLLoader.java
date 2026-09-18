@@ -52,7 +52,7 @@ public class XMLLoader {
         }
     }
 
-    private GuessMarket unmarshalEx03(InputStream input) {
+    private Ex03Market unmarshalEx03(InputStream input) {
         if (input == null) throw new InvalidMarketXmlException("Uploaded XML stream cannot be null");
         try (InputStream schemaInput = XMLLoader.class.getResourceAsStream("GM-EX3-Schema.xsd")) {
             if (schemaInput == null) throw new IllegalStateException("EX03 XML schema resource is missing");
@@ -60,7 +60,7 @@ public class XMLLoader {
             factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
             Schema schema = factory.newSchema(new StreamSource(schemaInput));
-            JAXBContext context = JAXBContext.newInstance(GuessMarket.class);
+            JAXBContext context = JAXBContext.newInstance(Ex03Market.class);
             Unmarshaller unmarshaller = context.createUnmarshaller();
             unmarshaller.setSchema(schema);
             SAXParserFactory parserFactory = SAXParserFactory.newInstance();
@@ -69,7 +69,7 @@ public class XMLLoader {
             parserFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
             parserFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             XMLReader reader = parserFactory.newSAXParser().getXMLReader();
-            return (GuessMarket) unmarshaller.unmarshal(
+            return (Ex03Market) unmarshaller.unmarshal(
                     new SAXSource(reader, new InputSource(input)));
         } catch (InvalidMarketXmlException error) {
             throw error;
@@ -282,12 +282,31 @@ public class XMLLoader {
     }
 
     public List<EventXmlData> loadEventsFromEx03Xml(InputStream input) {
-        GuessMarket market = unmarshalEx03(input);
-        if (market.getGMEvents() == null) {
+        Ex03Market market = unmarshalEx03(input);
+        if (market.events() == null) {
             throw new InvalidMarketXmlException("XML must contain GM-events");
         }
-        List<EventXmlData> events = convertJaxbEvents(market);
+        List<EventXmlData> events = convertEx03Events(market);
         validateEx03Events(events);
+        return events;
+    }
+
+    private List<EventXmlData> convertEx03Events(Ex03Market market) {
+        List<EventXmlData> events = new ArrayList<>();
+        for (Ex03Market.MarketEvent event : market.events().events()) {
+            TradingMethodXmlData method;
+            if (event.method().lmsr() != null) {
+                method = new LmsrXmlData(event.method().lmsr().b());
+            } else if (event.method().orderBook() != null) {
+                Ex03Market.OrderBook book = event.method().orderBook();
+                method = new OrderBookXmlData(book.allowMint(), book.initial(), book.d());
+            } else {
+                throw new InvalidMarketXmlException("Event must define a trading method");
+            }
+            events.add(new EventXmlData(0, event.name(), event.description(),
+                    event.commission().value(), event.commission().type(),
+                    event.options().options(), method));
+        }
         return events;
     }
 
