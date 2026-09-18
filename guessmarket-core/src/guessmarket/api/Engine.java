@@ -9,6 +9,7 @@ import guessmarket.dto.OrderSubmissionResultDTO;
 import guessmarket.domain.OrderSide;
 
 import java.util.List;
+import java.io.InputStream;
 
 public interface Engine {
 
@@ -27,6 +28,8 @@ public interface Engine {
     UserDTO registerUser(String username);
 
     UserDTO topUpAccount(String username, double amount);
+
+    List<EventDTO> importEventsFromEx03Xml(InputStream xml, String uploaderUsername);
 
     EventStateDTO createEvent(CreateEventRequest request);
 

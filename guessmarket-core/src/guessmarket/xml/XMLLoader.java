@@ -6,7 +6,16 @@ import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Unmarshaller;
 
 import java.io.File;
+import java.io.InputStream;
 import java.util.*;
+import javax.xml.XMLConstants;
+import javax.xml.transform.stream.StreamSource;
+import javax.xml.transform.sax.SAXSource;
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
+import javax.xml.parsers.SAXParserFactory;
+import org.xml.sax.InputSource;
+import org.xml.sax.XMLReader;
 
 
 public class XMLLoader {
@@ -40,6 +49,37 @@ public class XMLLoader {
 
         } catch (JAXBException e) {
             throw new IllegalArgumentException("XML file is malformed or does not match the required format.");
+        }
+    }
+
+    private GuessMarket unmarshalEx03(InputStream input) {
+        if (input == null) throw new InvalidMarketXmlException("Uploaded XML stream cannot be null");
+        try (InputStream schemaInput = XMLLoader.class.getResourceAsStream("GM-EX3-Schema.xsd")) {
+            if (schemaInput == null) throw new IllegalStateException("EX03 XML schema resource is missing");
+            SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+            factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            Schema schema = factory.newSchema(new StreamSource(schemaInput));
+            JAXBContext context = JAXBContext.newInstance(GuessMarket.class);
+            Unmarshaller unmarshaller = context.createUnmarshaller();
+            unmarshaller.setSchema(schema);
+            SAXParserFactory parserFactory = SAXParserFactory.newInstance();
+            parserFactory.setNamespaceAware(true);
+            parserFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            parserFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            parserFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            XMLReader reader = parserFactory.newSAXParser().getXMLReader();
+            return (GuessMarket) unmarshaller.unmarshal(
+                    new SAXSource(reader, new InputSource(input)));
+        } catch (InvalidMarketXmlException error) {
+            throw error;
+        } catch (Exception error) {
+            Throwable detail = error;
+            while (detail.getCause() != null && detail.getCause() != detail) detail = detail.getCause();
+            String message = detail.getMessage();
+            throw new InvalidMarketXmlException(
+                    "XML is malformed or does not match the EX03 schema"
+                            + (message == null ? "" : ": " + message), error);
         }
     }
 
@@ -239,6 +279,57 @@ public class XMLLoader {
         validateXmlFile(events, users);
 
         return new MarketXmlData(events, users);
+    }
+
+    public List<EventXmlData> loadEventsFromEx03Xml(InputStream input) {
+        GuessMarket market = unmarshalEx03(input);
+        if (market.getGMEvents() == null) {
+            throw new InvalidMarketXmlException("XML must contain GM-events");
+        }
+        List<EventXmlData> events = convertJaxbEvents(market);
+        validateEx03Events(events);
+        return events;
+    }
+
+    private void validateEx03Events(List<EventXmlData> events) {
+        Set<String> eventNames = new HashSet<>();
+        if (events.isEmpty()) throw new InvalidMarketXmlException("Upload must contain at least one event");
+        for (EventXmlData event : events) {
+            if (event.name() == null || event.name().isBlank()) {
+                throw new InvalidMarketXmlException("Event name cannot be blank");
+            }
+            String normalized = event.name().trim().toLowerCase(Locale.ROOT);
+            if (!eventNames.add(normalized)) {
+                throw new InvalidMarketXmlException("Duplicate event name in upload: " + event.name().trim());
+            }
+            if (event.description() == null || event.description().isBlank()) {
+                throw new InvalidMarketXmlException("Event description cannot be blank: " + event.name().trim());
+            }
+            if (event.commission() < 0 || event.commission() > 90) {
+                throw new InvalidMarketXmlException("Commission must be between 0 and 90: " + event.name().trim());
+            }
+            Set<String> options = new HashSet<>();
+            if (event.options().size() < 2) {
+                throw new InvalidMarketXmlException("Event must contain at least two options: " + event.name().trim());
+            }
+            for (String option : event.options()) {
+                if (option == null || option.isBlank()
+                        || !options.add(option.trim().toLowerCase(Locale.ROOT))) {
+                    throw new InvalidMarketXmlException("Options must be distinct and non-blank: " + event.name().trim());
+                }
+            }
+            if (event.tradingMethod() instanceof LmsrXmlData lmsr && lmsr.liquidityParameter() <= 0) {
+                throw new InvalidMarketXmlException("LMSR b must be greater than zero: " + event.name().trim());
+            }
+            if (event.tradingMethod() instanceof OrderBookXmlData book) {
+                if (book.d() <= 0 || book.initial() < 0 || book.initial() % book.d() != 0) {
+                    throw new InvalidMarketXmlException("Invalid Order Book d or initial amount: " + event.name().trim());
+                }
+                if (book.allowMint() && event.options().size() != 2) {
+                    throw new InvalidMarketXmlException("MINT requires exactly two options: " + event.name().trim());
+                }
+            }
+        }
     }
 
     private List<UserXmlData> convertJaxbUsers(GuessMarket guessMarket) {

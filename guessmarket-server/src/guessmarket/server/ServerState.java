@@ -2,6 +2,7 @@ package guessmarket.server;
 
 import guessmarket.api.Engine;
 import guessmarket.dto.UserDTO;
+import guessmarket.dto.EventDTO;
 import guessmarket.service.GuessMarketEngine;
 
 import java.util.LinkedHashMap;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.io.InputStream;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -91,6 +93,15 @@ public final class ServerState {
 
     public List<UserDTO> users() {
         return read(Engine::getUsers);
+    }
+
+    public List<EventDTO> importEvents(String sessionToken, InputStream xml) {
+        lock.writeLock().lock();
+        try {
+            return engine.importEventsFromEx03Xml(xml, requireSessionUsername(sessionToken));
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     private String requireSessionUsername(String sessionToken) {

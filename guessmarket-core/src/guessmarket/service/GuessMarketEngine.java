@@ -89,25 +89,19 @@ public class GuessMarketEngine implements Engine, Serializable {
     public List<EventDTO> getEventSummaries() {
         List<EventDTO> eventSummaries = new ArrayList<>();
         for (Event e:eventsById.values()) {
-
-            List<String> optionNames = convertOptionsToStrings(e.getOptions());
-                    EventDTO eventDTO = new EventDTO(
-                    e.getId(),
-                    e.getName(),
-                    e.getDescription(),
-                    e.getCommissionPercentage(),
-                    e.getCommissionMethod().name(),
-                    optionNames,
-                    e.getState().name(),
-                    e.getTradingMethodType().name(),
-                    e.getAccountBalance(),
-                    e.getMarketMakerUsername()
-            );
-
-            eventSummaries.add(eventDTO);
+            eventSummaries.add(createEventDTO(e));
         }
 
         return List.copyOf(eventSummaries);
+    }
+
+    private EventDTO createEventDTO(Event event) {
+        return new EventDTO(
+                event.getId(), event.getName(), event.getDescription(),
+                event.getCommissionPercentage(), event.getCommissionMethod().name(),
+                convertOptionsToStrings(event.getOptions()), event.getState().name(),
+                event.getTradingMethodType().name(), event.getAccountBalance(),
+                event.getMarketMakerUsername());
     }
 
     @Override
@@ -158,6 +152,31 @@ public class GuessMarketEngine implements Engine, Serializable {
         User user = requireUser(username);
         user.topUp(amount);
         return createUserDTO(user);
+    }
+
+    @Override
+    public List<EventDTO> importEventsFromEx03Xml(InputStream xml, String uploaderUsername) {
+        User uploader = requireUser(uploaderUsername);
+        List<EventXmlData> eventData = new XMLLoader().loadEventsFromEx03Xml(xml);
+        Set<String> existingNames = eventsById.values().stream()
+                .map(event -> event.getName().trim().toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toSet());
+        List<Event> prepared = new ArrayList<>();
+        Set<Integer> reservedIds = new HashSet<>(eventsById.keySet());
+        for (EventXmlData data : eventData) {
+            if (!existingNames.add(data.name().trim().toLowerCase(Locale.ROOT))) {
+                throw new DuplicateEventNameException(data.name().trim());
+            }
+            List<Option> options = createOptions(data.options());
+            int id = nextAvailableEventId(reservedIds);
+            reservedIds.add(id);
+            prepared.add(new Event(
+                    id, data.name().trim(), data.description(), data.commission(),
+                    createCommissionMethod(data.commissionMethod()), options,
+                    createTradingMethod(data.tradingMethod(), options), new Account(0), uploader));
+        }
+        for (Event event : prepared) eventsById.put(event.getId(), event);
+        return prepared.stream().map(this::createEventDTO).toList();
     }
 
     @Override
@@ -239,6 +258,13 @@ public class GuessMarketEngine implements Engine, Serializable {
     private int nextAvailableEventId() {
         for (int candidate = 1; candidate > 0; candidate++) {
             if (!eventsById.containsKey(candidate)) return candidate;
+        }
+        throw new IllegalStateException("No event IDs are available");
+    }
+
+    private int nextAvailableEventId(Set<Integer> unavailableIds) {
+        for (int candidate = 1; candidate > 0; candidate++) {
+            if (!unavailableIds.contains(candidate)) return candidate;
         }
         throw new IllegalStateException("No event IDs are available");
     }

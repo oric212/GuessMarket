@@ -46,6 +46,8 @@ New-Item -ItemType Directory -Force -Path $coreClasses, $serverClasses, $webInfC
 $coreSources = @(Get-ChildItem -Recurse -File (Join-Path $root 'guessmarket-core/src'), (Join-Path $root 'guessmarket-core/generated') -Filter '*.java' | ForEach-Object FullName)
 & javac -encoding UTF-8 -cp (Join-Path $dependencyDirectory '*') -d $coreClasses $coreSources
 if ($LASTEXITCODE -ne 0) { throw 'Core compilation failed' }
+New-Item -ItemType Directory -Force -Path (Join-Path $coreClasses 'guessmarket/xml') | Out-Null
+Copy-Item -Force (Join-Path $root 'schema/GM-EX3-Schema.xsd') (Join-Path $coreClasses 'guessmarket/xml/GM-EX3-Schema.xsd')
 
 $serverSources = @(Get-ChildItem -Recurse -File (Join-Path $root 'guessmarket-server/src') -Filter '*.java' | ForEach-Object FullName)
 $serverClasspath = $coreClasses + [IO.Path]::PathSeparator + (Join-Path $dependencyDirectory '*')
