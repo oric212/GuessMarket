@@ -1,8 +1,17 @@
 ### IntelliJ IDEA ###
+.idea/
+*.iml
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 .kotlin
+
+### Java build artifacts ###
+build/
+target/
+*.class
+*.jar
+*.war
 
 ### Eclipse ###
 .apt_generated
@@ -33,7 +42,17 @@ bin/
 /server-build/
 /server-dist/
 /tomcat-smoke/
+apache-tomcat-*/
+tomcat-runtime/
 *.log
+
+# Local runtime state and temporary test output
+/save states/
+*.sav
+*.tmp
+*.temp
+/test-output/
+/test-results/
 
 ### VS Code ###
 .vscode/
