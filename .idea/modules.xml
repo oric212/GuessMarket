@@ -6,6 +6,7 @@
       <module fileurl="file://$PROJECT_DIR$/guessmarket-console/guessmarket-console.iml" filepath="$PROJECT_DIR$/guessmarket-console/guessmarket-console.iml" />
       <module fileurl="file://$PROJECT_DIR$/guessmarket-core/guessmarket-core.iml" filepath="$PROJECT_DIR$/guessmarket-core/guessmarket-core.iml" />
       <module fileurl="file://$PROJECT_DIR$/guessmarket-javafx/guessmarket-javafx.iml" filepath="$PROJECT_DIR$/guessmarket-javafx/guessmarket-javafx.iml" />
+      <module fileurl="file://$PROJECT_DIR$/guessmarket-server/guessmarket-server.iml" filepath="$PROJECT_DIR$/guessmarket-server/guessmarket-server.iml" />
     </modules>
   </component>
 </project>

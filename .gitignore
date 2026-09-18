@@ -28,6 +28,13 @@ bin/
 /submission/
 /GuessMarket-EX02.zip
 
+# Reproducible EX03 server build/dependency output
+/.deps/
+/server-build/
+/server-dist/
+/tomcat-smoke/
+*.log
+
 ### VS Code ###
 .vscode/
 

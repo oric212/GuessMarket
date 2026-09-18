@@ -74,3 +74,15 @@ Select a user on the Users screen and complete the **Create Event** section to c
 - `UsersController`: selected-user workspace, MM actions, purchases/orders, and notifications.
 
 Framework-free regression programs live under the two test directories. The package ships production classes and CSS only and does not depend on IDE output or source directories.
+
+## EX03 server foundation
+
+`guessmarket-server` is the Tomcat web module. Run `build-server.bat` with Java 25 to produce the single deployable artifact at `server-dist/GuessMarket.war`. The build downloads pinned compile/runtime dependencies into the ignored `.deps` cache, compiles core and server sources, and packages Gson plus JAXB runtime dependencies under `WEB-INF/lib`. The Servlet API is compile-only because Tomcat provides it.
+
+Deploy `GuessMarket.war` to Tomcat 11's `webapps` directory. Its stable context path is `/GuessMarket`, with these initial JSON endpoints:
+
+- `GET /GuessMarket/api/health` returns deployment status.
+- `GET /GuessMarket/api/events` returns immutable event summaries.
+- `GET /GuessMarket/api/events/{url-encoded-event-name}` returns details using EX03's case-insensitive name identity.
+
+Errors use HTTP status codes and a JSON body shaped as `{"success":false,"code":"...","message":"..."}`. State lives once per deployed web application in the servlet context and intentionally disappears at restart. `ServerState` applies a fair read/write lock: DTO queries may run concurrently, while current and future state-changing engine calls use the exclusive write path to preserve trading and accounting atomicity. The current endpoints are read-only; login, runtime users, top-up, upload, trading actions, polling, and chat remain deferred to later EX03 work.
