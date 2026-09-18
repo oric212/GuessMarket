@@ -1,9 +1,14 @@
 package guessmarket.server;
 
 import guessmarket.api.Engine;
+import guessmarket.dto.UserDTO;
 import guessmarket.service.GuessMarketEngine;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -11,6 +16,9 @@ import java.util.function.Function;
 public final class ServerState {
     private final Engine engine;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
+    private final Map<String, String> usernamesBySessionToken = new LinkedHashMap<>();
+
+    public record Login(String sessionToken, UserDTO user) {}
 
     public ServerState() {
         this(new GuessMarketEngine());
@@ -49,5 +57,54 @@ public final class ServerState {
             operation.accept(engine);
             return null;
         });
+    }
+
+    public Login login(String username) {
+        lock.writeLock().lock();
+        try {
+            UserDTO user = engine.registerUser(username);
+            String token = UUID.randomUUID().toString();
+            usernamesBySessionToken.put(token, user.username());
+            return new Login(token, user);
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public UserDTO currentUser(String sessionToken) {
+        lock.readLock().lock();
+        try {
+            return engine.getUser(requireSessionUsername(sessionToken));
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    public UserDTO topUp(String sessionToken, double amount) {
+        lock.writeLock().lock();
+        try {
+            return engine.topUpAccount(requireSessionUsername(sessionToken), amount);
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public List<UserDTO> users() {
+        return read(Engine::getUsers);
+    }
+
+    private String requireSessionUsername(String sessionToken) {
+        if (sessionToken == null || sessionToken.isBlank()) {
+            throw new UnknownSessionException();
+        }
+        String username = usernamesBySessionToken.get(sessionToken.trim());
+        if (username == null) throw new UnknownSessionException();
+        return username;
+    }
+
+    public static final class UnknownSessionException extends RuntimeException {
+        public UnknownSessionException() {
+            super("The session token is missing or invalid");
+        }
     }
 }

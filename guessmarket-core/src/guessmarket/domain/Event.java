@@ -209,7 +209,8 @@ public final class Event implements Serializable {
             throw new IllegalStateException("Event account cannot accept the initial LMSR subsidy");
         }
 
-        actingUser.withdraw(subsidy);
+        actingUser.withdraw(subsidy, AccountTransactionType.EVENT_STARTUP_FUNDING,
+                name, "LMSR startup subsidy");
         account.deposit(subsidy);
         transitionTo(EventState.ACTIVE);
     }
@@ -228,7 +229,8 @@ public final class Event implements Serializable {
         }
         int pairQuantity = initial / d;
         if (initial > 0) {
-            actingUser.withdraw(initial);
+            actingUser.withdraw(initial, AccountTransactionType.EVENT_STARTUP_FUNDING,
+                    name, "Order Book initial funding");
             account.deposit(initial);
         }
         UserParticipation participation = participations.computeIfAbsent(
@@ -305,7 +307,8 @@ public final class Event implements Serializable {
         if (side == OrderSide.SELL) incomingParticipation.reserveSell(option, quantity);
         OrderMatchResult result = orderBook.commit(plan);
         for (Map.Entry<User, Double> change : balanceChanges.entrySet()) {
-            change.getKey().applyBalanceChange(change.getValue());
+            change.getKey().applyBalanceChange(
+                    change.getValue(), name, "Order Book executions and commissions");
         }
         if (eventCredit > 0.0) account.deposit(eventCredit);
         for (OrderExecution execution : result.executions()) {
@@ -395,10 +398,12 @@ public final class Event implements Serializable {
                 || (commissionPaid > 0.0 && !marketMaker.canReceive(commissionPaid))) {
             throw new IllegalStateException("Purchase would produce an invalid account balance");
         }
-        buyer.withdraw(totalPayment);
+        buyer.withdraw(totalPayment, AccountTransactionType.LMSR_PURCHASE,
+                name, "LMSR share purchase and commission");
         account.deposit(purchaseCost);
         if (commissionPaid > 0.0) {
-            marketMaker.deposit(commissionPaid);
+            marketMaker.deposit(commissionPaid, AccountTransactionType.COMMISSION_RECEIVED,
+                    name, "LMSR purchase commission");
         }
         lmsr.recordPurchase(option, quantity);
         tradeHistory.add(trade);
@@ -447,9 +452,12 @@ public final class Event implements Serializable {
 
         for (Map.Entry<User, Settlement> entry : settlements.entrySet()) {
             Settlement settlement = entry.getValue();
-            if (settlement.netPayout > 0.0) entry.getKey().deposit(settlement.netPayout);
+            if (settlement.netPayout > 0.0) entry.getKey().deposit(
+                    settlement.netPayout, AccountTransactionType.EVENT_SETTLEMENT,
+                    name, "LMSR settlement payout");
             if (settlement.commission > 0.0) {
-                marketMaker.deposit(settlement.commission);
+                marketMaker.deposit(settlement.commission, AccountTransactionType.COMMISSION_RECEIVED,
+                        name, "LMSR close commission");
                 participations.get(entry.getKey()).recordSettlement(
                         settlement.netPayout, settlement.commission);
             } else if (settlement.netPayout > 0.0) {
@@ -458,7 +466,9 @@ public final class Event implements Serializable {
         }
         account.withdraw(totalGross);
         double remainder = account.drain();
-        if (remainder > 0.0) marketMaker.deposit(remainder);
+        if (remainder > 0.0) marketMaker.deposit(
+                remainder, AccountTransactionType.SUBSIDY_RETURN,
+                name, "Unused LMSR subsidy returned");
 
         totalCommissionCollected += totalCloseCommission;
         this.winningOption = winningOption;
@@ -495,7 +505,9 @@ public final class Event implements Serializable {
             }
         }
         for (Map.Entry<User, Double> change : changes.entrySet()) {
-            change.getKey().applyBalanceChange(change.getValue());
+            change.getKey().applyBalanceChange(
+                    change.getValue(), AccountTransactionType.EVENT_SETTLEMENT,
+                    name, "Order Book settlement and commissions");
         }
         for (Map.Entry<User, Settlement> entry : settlements.entrySet()) {
             participations.get(entry.getKey()).recordSettlement(

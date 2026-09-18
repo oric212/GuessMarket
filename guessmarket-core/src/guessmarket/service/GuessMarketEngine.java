@@ -136,6 +136,31 @@ public class GuessMarketEngine implements Engine, Serializable {
     }
 
     @Override
+    public UserDTO registerUser(String username) {
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("Username cannot be blank");
+        }
+        String trimmed = username.trim();
+        String key = normalizeUsername(trimmed);
+        if (usersByName.containsKey(key)) {
+            throw new IllegalArgumentException("Username is already in use: " + trimmed);
+        }
+        User user = new User(trimmed, 0.0);
+        usersByName.put(key, user);
+        return createUserDTO(user);
+    }
+
+    @Override
+    public UserDTO topUpAccount(String username, double amount) {
+        if (!Double.isFinite(amount) || amount <= 0.0) {
+            throw new IllegalArgumentException("Top-up amount must be finite and greater than zero");
+        }
+        User user = requireUser(username);
+        user.topUp(amount);
+        return createUserDTO(user);
+    }
+
+    @Override
     public EventStateDTO createEvent(CreateEventRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Create event request cannot be null");
@@ -231,12 +256,19 @@ public class GuessMarketEngine implements Engine, Serializable {
                 .filter(Objects::nonNull)
                 .toList();
 
+        List<AccountTransactionDTO> transactions = user.getAccountTransactions().stream()
+                .map(transaction -> new AccountTransactionDTO(
+                        transaction.sequence(), transaction.type().name(), transaction.amountChange(),
+                        transaction.resultingBalance(), transaction.eventName(), transaction.description()))
+                .toList();
         return new UserDTO(
                 user.getUsername(),
                 user.getAccountBalance(),
                 user.isBlocked(),
+                !marketMakerEventIds.isEmpty(),
                 marketMakerEventIds,
-                participations
+                participations,
+                transactions
         );
     }
 

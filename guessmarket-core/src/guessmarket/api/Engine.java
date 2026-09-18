@@ -24,6 +24,10 @@ public interface Engine {
 
     UserDTO getUser(String username);
 
+    UserDTO registerUser(String username);
+
+    UserDTO topUpAccount(String username, double amount);
+
     EventStateDTO createEvent(CreateEventRequest request);
 
     EventStateDTO startEvent(String username, int eventId);

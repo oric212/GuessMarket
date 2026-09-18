@@ -15,5 +15,10 @@ $classpath = (Join-Path $buildDirectory 'core-classes') + [IO.Path]::PathSeparat
 if ($LASTEXITCODE -ne 0) { throw 'Server test compilation failed' }
 
 $runtimeClasspath = $testClasses + [IO.Path]::PathSeparator + $classpath
-& java -cp $runtimeClasspath guessmarket.server.ServerFoundationTest
-if ($LASTEXITCODE -ne 0) { throw 'Server tests failed' }
+foreach ($testClass in @(
+    'guessmarket.server.ServerFoundationTest',
+    'guessmarket.server.RuntimeUserApiTest'
+)) {
+    & java -cp $runtimeClasspath $testClass
+    if ($LASTEXITCODE -ne 0) { throw "Server test failed: $testClass" }
+}

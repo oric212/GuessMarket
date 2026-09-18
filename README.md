@@ -84,5 +84,13 @@ Deploy `GuessMarket.war` to Tomcat 11's `webapps` directory. Its stable context 
 - `GET /GuessMarket/api/health` returns deployment status.
 - `GET /GuessMarket/api/events` returns immutable event summaries.
 - `GET /GuessMarket/api/events/{url-encoded-event-name}` returns details using EX03's case-insensitive name identity.
+- `POST /GuessMarket/api/login` accepts `{"username":"Alice"}`, atomically registers a runtime user, and returns a UUID session token.
+- `GET /GuessMarket/api/users` returns only public username, balance, and Market Maker status.
+- `GET /GuessMarket/api/user/me` returns the token owner's private user/account state.
+- `POST /GuessMarket/api/user/account/topup` accepts `{"amount":25.0}` and returns the updated private state.
 
-Errors use HTTP status codes and a JSON body shaped as `{"success":false,"code":"...","message":"..."}`. State lives once per deployed web application in the servlet context and intentionally disappears at restart. `ServerState` applies a fair read/write lock: DTO queries may run concurrently, while current and future state-changing engine calls use the exclusive write path to preserve trading and accounting atomicity. The current endpoints are read-only; login, runtime users, top-up, upload, trading actions, polling, and chat remain deferred to later EX03 work.
+Private endpoints identify the caller with the `X-GuessMarket-Session` header. Usernames are trimmed and unique case-insensitively for the lifetime of the server. EX03 does not specify a nonzero opening grant, so runtime users start at `0.00` and add funds through top-up; EX02 XML users retain their configured initial cash. Logout is not yet required, so registrations and tokens remain active until the in-memory server state is restarted.
+
+Each user account stores real immutable transaction entries rather than reconstructing history. Entries have a deterministic sequence, transaction type, signed balance change, resulting balance, optional event name, and description. Creation, top-up, event funding, purchases/trades, commissions, settlement, and subsidy return all use the centralized account mutation path. Other users never receive this private history.
+
+Errors use HTTP status codes and a JSON body shaped as `{"success":false,"code":"...","message":"..."}`. State lives once per deployed web application in the servlet context and intentionally disappears at restart. `ServerState` applies a fair read/write lock: DTO queries may run concurrently, while login, top-up, and future state-changing engine calls use the exclusive write path to preserve identity and accounting atomicity. XML upload, trading endpoints, polling, and chat remain deferred to later EX03 work.
