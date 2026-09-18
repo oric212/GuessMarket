@@ -15,6 +15,7 @@ import javafx.scene.layout.*;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
@@ -203,19 +204,17 @@ public final class EventsController {
     }
 
     private Parent buildParticipants(EventStateDTO state) {
-        String first = state.options().get(0);
-        String second = state.options().get(1);
         TableView<EventParticipantDTO> table = new TableView<>();
         configureTable(table, "No participants yet.");
         table.getColumns().add(column("Username", EventParticipantDTO::username, 130));
-        table.getColumns().add(column(first + " quantity", dto -> dto.holdingsByOption().get(first), 125));
-        table.getColumns().add(column(first + " value",
-                dto -> formatNullable(dto.currentHoldingValueByOption().get(first)), 115));
-        table.getColumns().add(column(second + " quantity", dto -> dto.holdingsByOption().get(second), 125));
-        table.getColumns().add(column(second + " value",
-                dto -> formatNullable(dto.currentHoldingValueByOption().get(second)), 115));
+        for (String option : state.options()) {
+            table.getColumns().add(column(option + " quantity",
+                    dto -> dto.holdingsByOption().get(option), 125));
+            table.getColumns().add(column(option + " value",
+                    dto -> formatNullable(dto.currentHoldingValueByOption().get(option)), 115));
+        }
         table.getColumns().add(column("Reserved / available",
-                dto -> compactQuantities(dto, first, second), 210));
+                dto -> compactQuantities(dto, state.options()), 210));
         table.getColumns().add(column("Cash summary", EventsController::cashSummary, 215));
         table.getItems().setAll(state.participants());
         table.setPrefHeight(220);
@@ -330,10 +329,11 @@ public final class EventsController {
         emptyDetails.setManaged(true);
     }
 
-    private static String compactQuantities(EventParticipantDTO dto, String first, String second) {
-        return first + ": " + dto.reservedSellByOption().get(first) + " / "
-                + dto.availableToSellByOption().get(first) + "  |  " + second + ": "
-                + dto.reservedSellByOption().get(second) + " / " + dto.availableToSellByOption().get(second);
+    private static String compactQuantities(EventParticipantDTO dto, List<String> options) {
+        return options.stream()
+                .map(option -> option + ": " + dto.reservedSellByOption().get(option)
+                        + " / " + dto.availableToSellByOption().get(option))
+                .collect(java.util.stream.Collectors.joining("  |  "));
     }
 
     private static String cashSummary(EventParticipantDTO dto) {

@@ -86,16 +86,21 @@ public final class Event implements Serializable {
 
         List<Option> eventOptions = List.copyOf(options);
 
-        if (eventOptions.size() != 2) {
+        if (eventOptions.size() < 2) {
             throw new IllegalArgumentException(
-                    "An event must contain exactly two options"
+                    "An event must contain at least two options"
             );
         }
 
-        if (eventOptions.get(0) == eventOptions.get(1)) {
-            throw new IllegalArgumentException(
-                    "An event must contain two distinct options"
-            );
+        Map<String, Boolean> optionNames = new LinkedHashMap<>();
+        for (Option option : eventOptions) {
+            if (option == null) {
+                throw new IllegalArgumentException("Event options cannot contain null");
+            }
+            String normalizedName = option.getName().trim().toLowerCase(java.util.Locale.ROOT);
+            if (optionNames.putIfAbsent(normalizedName, Boolean.TRUE) != null) {
+                throw new IllegalArgumentException("Event option names must be distinct");
+            }
         }
 
         this.id = id;

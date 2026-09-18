@@ -147,6 +147,7 @@ public class GuessMarketEngine implements Engine, Serializable {
         }
 
         validateNewEventOptions(request.options());
+        validateAvailableEventName(request.eventName());
         List<Option> options = createOptions(request.options());
         TradingMethod tradingMethod = createTradingMethod(request.tradingConfiguration(), options);
         int eventId = nextAvailableEventId();
@@ -167,8 +168,8 @@ public class GuessMarketEngine implements Engine, Serializable {
     }
 
     private void validateNewEventOptions(List<String> optionNames) {
-        if (optionNames == null || optionNames.size() != 2) {
-            throw new IllegalArgumentException("An event must contain exactly two options");
+        if (optionNames == null || optionNames.size() < 2) {
+            throw new IllegalArgumentException("An event must contain at least two options");
         }
         Set<String> normalizedNames = new HashSet<>();
         for (String optionName : optionNames) {
@@ -178,6 +179,15 @@ public class GuessMarketEngine implements Engine, Serializable {
             if (!normalizedNames.add(optionName.trim().toLowerCase(Locale.ROOT))) {
                 throw new IllegalArgumentException("Event option names must be distinct");
             }
+        }
+    }
+
+    private void validateAvailableEventName(String eventName) {
+        if (eventName == null || eventName.isBlank()) return;
+        String normalized = eventName.trim().toLowerCase(Locale.ROOT);
+        if (eventsById.values().stream().anyMatch(event ->
+                event.getName().trim().toLowerCase(Locale.ROOT).equals(normalized))) {
+            throw new IllegalArgumentException("An event already exists with name: " + eventName.trim());
         }
     }
 
@@ -302,6 +312,11 @@ public class GuessMarketEngine implements Engine, Serializable {
         );
     }
 
+    @Override
+    public EventStateDTO getEventState(String eventName) {
+        return getEventState(requireEvent(eventName).getId());
+    }
+
     private OrderBookDetailsDTO createOrderBookDetails(Event event) {
         OrderBookSnapshot orderBook = event.getOrderBookSnapshot();
         List<OrderBookOptionDTO> books = orderBook.optionBooks().stream().map(option ->
@@ -413,6 +428,11 @@ public class GuessMarketEngine implements Engine, Serializable {
     }
 
     @Override
+    public EventStateDTO startEvent(String username, String eventName) {
+        return startEvent(username, requireEvent(eventName).getId());
+    }
+
+    @Override
     public PurchaseResultDTO purchaseShares(String username, int eventId, int optionChoice, int quantity) {
         User buyer = requireUser(username);
         Event requestedEvent = eventsById.get(eventId);
@@ -431,6 +451,12 @@ public class GuessMarketEngine implements Engine, Serializable {
                 );
     }
 
+    @Override
+    public PurchaseResultDTO purchaseShares(
+            String username, String eventName, int optionChoice, int quantity) {
+        return purchaseShares(username, requireEvent(eventName).getId(), optionChoice, quantity);
+    }
+
 
     @Override
     public EventStateDTO closeEvent(String username, int eventId, int winningOptionChoice) {
@@ -442,6 +468,11 @@ public class GuessMarketEngine implements Engine, Serializable {
         requestedEvent.close(actingUser, winningOption);
 
         return getEventState(eventId);
+    }
+
+    @Override
+    public EventStateDTO closeEvent(String username, String eventName, int winningOptionChoice) {
+        return closeEvent(username, requireEvent(eventName).getId(), winningOptionChoice);
     }
 
     private Map<Integer, Event> createEvents(
@@ -544,6 +575,14 @@ public class GuessMarketEngine implements Engine, Serializable {
                 submitted.getRemainingQuantity(), submitted.getPricePerShare(), executions, mints);
     }
 
+    @Override
+    public OrderSubmissionResultDTO submitOrder(
+            String username, String eventName, int optionChoice,
+            OrderSide side, int quantity, double pricePerShare) {
+        return submitOrder(username, requireEvent(eventName).getId(), optionChoice,
+                side, quantity, pricePerShare);
+    }
+
     private User requireUser(String username) {
         if (username == null || username.isBlank()) {
             throw new IllegalArgumentException("Username cannot be blank");
@@ -559,6 +598,18 @@ public class GuessMarketEngine implements Engine, Serializable {
         Event event = eventsById.get(eventId);
         validateEvent(eventId, event);
         return event;
+    }
+
+    private Event requireEvent(String eventName) {
+        if (eventName == null || eventName.isBlank()) {
+            throw new IllegalArgumentException("Event name cannot be blank");
+        }
+        String normalized = eventName.trim().toLowerCase(Locale.ROOT);
+        return eventsById.values().stream()
+                .filter(event -> event.getName().trim().toLowerCase(Locale.ROOT).equals(normalized))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No event exists with name: " + eventName.trim()));
     }
 
     private Map<String, User> copyAndValidateUsers(Map<String, User> loadedUsers) {

@@ -23,18 +23,22 @@ public final class OrderBook implements TradingMethod {
     public OrderBook(boolean allowMint, int initial, int d, List<Option> options) {
         if (initial < 0) throw new IllegalArgumentException("Order Book initial amount cannot be negative");
         if (d <= 0) throw new IllegalArgumentException("Order Book d must be greater than zero");
-        if (options == null || options.size() != 2) {
-            throw new IllegalArgumentException("An Order Book must contain exactly two options");
+        if (options == null || options.size() < 2) {
+            throw new IllegalArgumentException("An Order Book must contain at least two options");
         }
-        if (options.get(0) == null || options.get(1) == null || options.get(0) == options.get(1)) {
-            throw new IllegalArgumentException("An Order Book must contain two distinct options");
+        if (allowMint && options.size() != 2) {
+            throw new IllegalArgumentException("MINT is only defined for two-option Order Book events");
         }
         this.allowMint = allowMint;
         this.initial = initial;
         this.d = d;
         this.options = List.copyOf(options);
         this.booksByOption = new IdentityHashMap<>();
-        for (Option option : this.options) booksByOption.put(option, new OptionBook());
+        for (Option option : this.options) {
+            if (option == null || booksByOption.put(option, new OptionBook()) != null) {
+                throw new IllegalArgumentException("An Order Book must contain distinct, non-null options");
+            }
+        }
     }
 
     public boolean isMintAllowed() { return allowMint; }

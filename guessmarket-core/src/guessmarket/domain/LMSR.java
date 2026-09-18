@@ -1,7 +1,7 @@
 package guessmarket.domain;
 
 import java.io.Serializable;
-import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,16 +20,18 @@ public final class LMSR implements TradingMethod {
             throw new IllegalArgumentException("Options is null");
         }
 
-        if(options.isEmpty()){
-            throw new IllegalArgumentException("options is Empty");
+        if(options.size() < 2){
+            throw new IllegalArgumentException("LMSR requires at least two options");
         }
 
         this.liquidityParameter = liquidityParameter;
         this.options = List.copyOf(options);
-        this.quantitiesByOption = new HashMap<>();
+        this.quantitiesByOption = new IdentityHashMap<>();
 
         for (Option option : this.options) {
-            quantitiesByOption.put(option, 0);
+            if (option == null || quantitiesByOption.put(option, 0) != null) {
+                throw new IllegalArgumentException("LMSR requires distinct, non-null options");
+            }
         }
     }
 
@@ -47,14 +49,9 @@ public final class LMSR implements TradingMethod {
             throw new IllegalArgumentException("Option does not belong to this LMSR market");
         }
 
-        double numerator = calculateExponent(option);
-        double denominator = 0;
-
-        for (Option currOption : options) {
-            denominator += calculateExponent(currOption);
-        }
-
-        return numerator / denominator;
+        double maximum = maxScaledQuantity(0, null);
+        return Math.exp(scaledQuantity(option) - maximum)
+                / scaledExponentSum(maximum, 0, null);
     }
 
     public double calculatePurchaseCost(Option option, int quantity) {
@@ -62,27 +59,8 @@ public final class LMSR implements TradingMethod {
         validateOption(option);
         validateQuantity(quantity);
 
-        double beforeCost = 0;
-        double afterCost = 0;
-
-        for (Option currOption : options) {
-            beforeCost += calculateExponent(currOption);
-        }
-
-        beforeCost = (double) liquidityParameter * Math.log(beforeCost);
-
-        for (Option currOption : options) {
-
-            if (currOption == option) {
-                afterCost += Math.exp((quantitiesByOption.get(currOption) + quantity) /(double) liquidityParameter);
-            }else {
-                afterCost += calculateExponent(currOption);
-            }
-        }
-
-        afterCost = (double) liquidityParameter * Math.log(afterCost);
-
-        return afterCost - beforeCost;
+        Math.addExact(quantitiesByOption.get(option), quantity);
+        return logSumExpCost(quantity, option) - logSumExpCost(0, null);
     }
 
     public double calculateInitialSubsidy() {
@@ -104,7 +82,7 @@ public final class LMSR implements TradingMethod {
         validateQuantity(quantity);
 
         int currentQuantity = quantitiesByOption.get(option);
-        quantitiesByOption.put(option, currentQuantity + quantity);
+        quantitiesByOption.put(option, Math.addExact(currentQuantity, quantity));
     }
 
     private void validateOption(Option option) {
@@ -123,8 +101,34 @@ public final class LMSR implements TradingMethod {
         }
     }
 
-    private double calculateExponent(Option option) {
-        return Math.exp(quantitiesByOption.get(option) / (double) liquidityParameter);
+    private double scaledQuantity(Option option) {
+        return quantitiesByOption.get(option) / (double) liquidityParameter;
+    }
+
+    private double maxScaledQuantity(int selectedIncrease, Option selectedOption) {
+        double maximum = Double.NEGATIVE_INFINITY;
+        for (Option option : options) {
+            int quantity = quantitiesByOption.get(option)
+                    + (option == selectedOption ? selectedIncrease : 0);
+            maximum = Math.max(maximum, quantity / (double) liquidityParameter);
+        }
+        return maximum;
+    }
+
+    private double scaledExponentSum(double maximum, int selectedIncrease, Option selectedOption) {
+        double sum = 0.0;
+        for (Option option : options) {
+            int quantity = quantitiesByOption.get(option)
+                    + (option == selectedOption ? selectedIncrease : 0);
+            sum += Math.exp(quantity / (double) liquidityParameter - maximum);
+        }
+        return sum;
+    }
+
+    private double logSumExpCost(int selectedIncrease, Option selectedOption) {
+        double maximum = maxScaledQuantity(selectedIncrease, selectedOption);
+        return liquidityParameter
+                * (maximum + Math.log(scaledExponentSum(maximum, selectedIncrease, selectedOption)));
     }
 
     public int getQuantityBought(Option option) {

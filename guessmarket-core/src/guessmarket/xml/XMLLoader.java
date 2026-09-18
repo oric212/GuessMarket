@@ -111,6 +111,7 @@ public class XMLLoader {
 
     private void validateEvents(List<EventXmlData> events) {
         Set<Integer> eventIds = new HashSet<>();
+        Set<String> eventNames = new HashSet<>();
 
         for (EventXmlData event : events) {
             if (!eventIds.add(event.id())) {
@@ -127,11 +128,32 @@ public class XMLLoader {
                 );
             }
 
-            if (event.options().size() != 2) {
+            if (event.options().size() < 2) {
                 throw new IllegalArgumentException(
                         "Event ID " + event.id()
-                                + " must contain exactly 2 options"
+                                + " must contain at least 2 options"
                 );
+            }
+
+            if (event.name() == null || event.name().isBlank()
+                    || !eventNames.add(event.name().trim().toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("Event names must be non-blank and unique");
+            }
+
+            Set<String> optionNames = new HashSet<>();
+            for (String option : event.options()) {
+                if (option == null || option.isBlank()
+                        || !optionNames.add(option.trim().toLowerCase(Locale.ROOT))) {
+                    throw new IllegalArgumentException(
+                            "Event ID " + event.id()
+                                    + " must contain distinct, non-blank option names");
+                }
+            }
+
+            if (event.tradingMethod() instanceof OrderBookXmlData orderBook
+                    && orderBook.allowMint() && event.options().size() != 2) {
+                throw new IllegalArgumentException(
+                        "Event ID " + event.id() + " may enable MINT only with exactly 2 options");
             }
         }
     }

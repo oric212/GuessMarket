@@ -18,6 +18,8 @@ public interface Engine {
 
     EventStateDTO getEventState(int eventId);
 
+    EventStateDTO getEventState(String eventName);
+
     List<UserDTO> getUsers();
 
     UserDTO getUser(String username);
@@ -26,13 +28,23 @@ public interface Engine {
 
     EventStateDTO startEvent(String username, int eventId);
 
+    EventStateDTO startEvent(String username, String eventName);
+
     PurchaseResultDTO purchaseShares(String username, int eventId, int optionIndex, int quantity);
+
+    PurchaseResultDTO purchaseShares(String username, String eventName, int optionIndex, int quantity);
 
     OrderSubmissionResultDTO submitOrder(
             String username, int eventId, int optionChoice,
             OrderSide side, int quantity, double pricePerShare);
 
+    OrderSubmissionResultDTO submitOrder(
+            String username, String eventName, int optionChoice,
+            OrderSide side, int quantity, double pricePerShare);
+
     EventStateDTO closeEvent(String username, int eventId, int winningOptionIndex);
+
+    EventStateDTO closeEvent(String username, String eventName, int winningOptionIndex);
 
     void saveState(String filePath);
     void loadState(String filePath);

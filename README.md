@@ -49,6 +49,9 @@ Select a user on the Users screen and complete the **Create Event** section to c
 
 ## Implementation choices
 
+- Events, LMSR state, holdings, DTOs, and independent Order Book option books support two or more ordered options.
+- Event lifecycle and trading APIs accept either the legacy internal integer ID or the normalized unique event name.
+- EX03 does not define N-outcome MINT semantics; auto-mint therefore remains available only for complementary two-option Order Book events.
 - Ordinary crossing executes at the resting order's price.
 - Auto-mint keeps the resting leg's offered price; the incoming leg is `d - resting price`.
 - OB holding value uses MID, otherwise LAST, otherwise `N/A`.
