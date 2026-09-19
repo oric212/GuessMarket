@@ -26,6 +26,9 @@ public final class MainController {
     private final Label statusLabel = new Label("Choose an XML market file to begin.");
     private final ProgressIndicator progress = new ProgressIndicator();
     private final Button loadButton = new Button("Load File");
+    private final TextField topUpAmount = new TextField();
+    private final Button topUpButton = new Button("Top up");
+    private final String loggedInUsername;
     private final EventsController eventsController;
     private final UsersController usersController;
     private final TabPane navigation = new TabPane();
@@ -35,11 +38,18 @@ public final class MainController {
     private final AnimationSettings animationSettings = new AnimationSettings();
 
     public MainController(Engine engine, Stage owner) {
+        this(engine, owner, null);
+    }
+
+    public MainController(Engine engine, Stage owner, String loggedInUsername) {
         this.engine = engine;
         this.owner = owner;
+        this.loggedInUsername = loggedInUsername;
         this.eventsController = new EventsController(engine);
-        this.usersController = new UsersController(engine, this::refreshApplication, animationSettings::isEnabled);
+        this.usersController = new UsersController(
+                engine, this::refreshApplication, animationSettings::isEnabled, loggedInUsername);
         buildView();
+        refreshApplicationAsync();
     }
 
     public Parent getView() {
@@ -91,7 +101,11 @@ public final class MainController {
         skinControls.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         skinControls.getStyleClass().add("skin-controls");
 
-        HBox fileRow = new HBox(10, loadButton, progress, new Label("Current file:"), pathLabel);
+        topUpAmount.setPromptText("Positive amount");
+        topUpAmount.setPrefColumnCount(10);
+        topUpButton.setOnAction(event -> topUp());
+        HBox fileRow = new HBox(10, loadButton, progress, new Label("Uploaded file:"), pathLabel,
+                new Label("Balance:"), topUpAmount, topUpButton);
         fileRow.setFillHeight(true);
         VBox header = new VBox(8, title, fileRow, statusLabel, skinControls);
         header.setPadding(new Insets(14, 18, 10, 18));
@@ -126,7 +140,6 @@ public final class MainController {
             protected Void call() throws Exception {
                 updateMessage("Loading and validating market...");
                 updateProgress(-1, 1);
-                Thread.sleep(1_300);
                 engine.loadMarketFromXml(file.getAbsolutePath());
                 return null;
             }
@@ -185,6 +198,37 @@ public final class MainController {
     private void refreshApplication() {
         usersController.refreshUsers();
         eventsController.refreshEvents();
+    }
+
+    private void refreshApplicationAsync() {
+        Task<Void> task = new Task<>() {
+            @Override protected Void call() {
+                engine.getEventSummaries();
+                if (loggedInUsername != null) engine.getUser(loggedInUsername);
+                return null;
+            }
+        };
+        task.setOnSucceeded(event -> refreshApplication());
+        task.setOnFailed(event -> statusLabel.setText(messageOf(task.getException())));
+        Thread worker = new Thread(task, "guessmarket-initial-refresh");
+        worker.setDaemon(true); worker.start();
+    }
+
+    private void topUp() {
+        double amount;
+        try {
+            amount = Double.parseDouble(topUpAmount.getText().trim());
+            if (!Double.isFinite(amount) || amount <= 0) throw new NumberFormatException();
+        } catch (RuntimeException error) {
+            showError("Invalid top-up", "Enter a positive finite amount."); return;
+        }
+        Task<Void> task = new Task<>() {
+            @Override protected Void call() { engine.topUpAccount(loggedInUsername, amount); return null; }
+        };
+        topUpButton.setDisable(true);
+        task.setOnSucceeded(event -> { topUpButton.setDisable(false); topUpAmount.clear(); refreshApplication(); });
+        task.setOnFailed(event -> { topUpButton.setDisable(false); showError("Top-up failed", messageOf(task.getException())); });
+        Thread worker = new Thread(task, "guessmarket-top-up"); worker.setDaemon(true); worker.start();
     }
 
     private void finishLoading() {

@@ -27,4 +27,12 @@ public final class EventApiService {
             throw new ApiException(404, "EVENT_NOT_FOUND", "No event exists with name: " + eventName.trim());
         }
     }
+
+    public EventStateDTO details(int eventId) {
+        try {
+            return state.read(engine -> engine.getEventState(eventId));
+        } catch (IllegalArgumentException error) {
+            throw new ApiException(404, "EVENT_NOT_FOUND", "No event exists with ID: " + eventId);
+        }
+    }
 }

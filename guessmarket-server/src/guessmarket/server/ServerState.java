@@ -3,6 +3,10 @@ package guessmarket.server;
 import guessmarket.api.Engine;
 import guessmarket.dto.UserDTO;
 import guessmarket.dto.EventDTO;
+import guessmarket.dto.EventStateDTO;
+import guessmarket.dto.PurchaseResultDTO;
+import guessmarket.dto.OrderSubmissionResultDTO;
+import guessmarket.domain.OrderSide;
 import guessmarket.service.GuessMarketEngine;
 
 import java.util.LinkedHashMap;
@@ -99,6 +103,37 @@ public final class ServerState {
         lock.writeLock().lock();
         try {
             return engine.importEventsFromEx03Xml(xml, requireSessionUsername(sessionToken));
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public EventStateDTO startEvent(String sessionToken, int eventId) {
+        return authenticatedWrite(sessionToken, username -> engine.startEvent(username, eventId));
+    }
+
+    public PurchaseResultDTO purchaseShares(
+            String sessionToken, int eventId, int optionIndex, int quantity) {
+        return authenticatedWrite(sessionToken,
+                username -> engine.purchaseShares(username, eventId, optionIndex, quantity));
+    }
+
+    public OrderSubmissionResultDTO submitOrder(
+            String sessionToken, int eventId, int optionIndex,
+            OrderSide side, int quantity, double price) {
+        return authenticatedWrite(sessionToken,
+                username -> engine.submitOrder(username, eventId, optionIndex, side, quantity, price));
+    }
+
+    public EventStateDTO closeEvent(String sessionToken, int eventId, int winningOptionIndex) {
+        return authenticatedWrite(sessionToken,
+                username -> engine.closeEvent(username, eventId, winningOptionIndex));
+    }
+
+    private <T> T authenticatedWrite(String sessionToken, Function<String, T> operation) {
+        lock.writeLock().lock();
+        try {
+            return operation.apply(requireSessionUsername(sessionToken));
         } finally {
             lock.writeLock().unlock();
         }

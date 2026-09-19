@@ -83,12 +83,16 @@ Deploy `GuessMarket.war` to Tomcat 11's `webapps` directory. Its stable context 
 
 - `GET /GuessMarket/api/health` returns deployment status.
 - `GET /GuessMarket/api/events` returns immutable event summaries.
-- `GET /GuessMarket/api/events/{url-encoded-event-name}` returns details using EX03's case-insensitive name identity.
+- `GET /GuessMarket/api/events/{id-or-url-encoded-event-name}` returns current event details.
 - `POST /GuessMarket/api/login` accepts `{"username":"Alice"}`, atomically registers a runtime user, and returns a UUID session token.
 - `GET /GuessMarket/api/users` returns only public username, balance, and Market Maker status.
 - `GET /GuessMarket/api/user/me` returns the token owner's private user/account state.
 - `POST /GuessMarket/api/user/account/topup` accepts `{"amount":25.0}` and returns the updated private state.
 - `POST /GuessMarket/api/events/upload` accepts one authenticated multipart field named `file` containing an EX03 `.xml` file.
+- `POST /GuessMarket/api/events/{id}/start` starts an owned event.
+- `POST /GuessMarket/api/events/{id}/purchases` purchases LMSR shares.
+- `POST /GuessMarket/api/events/{id}/orders` submits an Order Book BUY or SELL.
+- `POST /GuessMarket/api/events/{id}/close` closes an owned event with a winning option.
 
 Private endpoints identify the caller with the `X-GuessMarket-Session` header. Usernames are trimmed and unique case-insensitively for the lifetime of the server. EX03 does not specify a nonzero opening grant, so runtime users start at `0.00` and add funds through top-up; EX02 XML users retain their configured initial cash. Logout is not yet required, so registrations and tokens remain active until the in-memory server state is restarted.
 
@@ -96,4 +100,6 @@ Each user account stores real immutable transaction entries rather than reconstr
 
 EX03 uploads are validated from the request stream against `schema/GM-EX3-Schema.xsd`; the raw XML is never saved or written to a temporary file. The schema permits one or two ordered options, while the established event/trading domain requires two options for a loadable event. The EX03 format omits `GM-users` and event `id`, and assigns the authenticated uploader as MM for every imported event. Imports are cumulative and atomic under the server write lock: all events are parsed/prepared first, and any malformed configuration or case-insensitive name collision within the upload or existing market adds nothing. Uploaded events remain `NOT_STARTED`; funding is deferred until the MM explicitly starts them in a later workflow. The legacy EX02 path loader retains its replace/users/ID semantics for regression compatibility.
 
-Errors use HTTP status codes and a JSON body shaped as `{"success":false,"code":"...","message":"..."}`. State lives once per deployed web application in the servlet context and intentionally disappears at restart. `ServerState` applies a fair read/write lock: DTO queries may run concurrently, while login, top-up, upload, and future state-changing engine calls use the exclusive write path to preserve identity and accounting atomicity. Trading endpoints, polling, and chat remain deferred to later EX03 work.
+Errors use HTTP status codes and a JSON body shaped as `{"success":false,"code":"...","message":"..."}`. State lives once per deployed web application in the servlet context and intentionally disappears at restart. `ServerState` applies a fair read/write lock: DTO queries may run concurrently, while login, top-up, upload, lifecycle, and trading calls use the exclusive write path to preserve identity and accounting atomicity. Automatic polling and chat remain deferred to Prompt 6.
+
+The JavaFX application is an HTTP client and never creates an authoritative local engine. It opens on login, defaults to `http://localhost:8080/GuessMarket/api/`, stores the returned session token in memory, and centralizes JSON, multipart upload, headers, and structured error decoding in `GuessMarketApiClient`. Set the `guessmarket.server` system property to override the API base URL. Network calls run on background JavaFX tasks; successful uploads, top-ups, lifecycle operations, and trades immediately refresh affected views. Automatic recurring refresh remains deferred to Prompt 6.

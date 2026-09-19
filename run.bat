@@ -8,5 +8,5 @@ if errorlevel 1 (
     echo Set JAVA_HOME to a Java 25 JDK or put Java 25 on PATH.
     exit /b 1
 )
-"%JAVA_CMD%" --module-path "%APP_DIR%lib\javafx" --add-modules javafx.controls --enable-native-access=javafx.graphics -Djava.library.path="%APP_DIR%lib\javafx-bin" -cp "%APP_DIR%GuessMarket-JavaFX.jar;%APP_DIR%GuessMarket-Core.jar;%APP_DIR%lib\jaxb\*" guessmarket.javafx.GuessMarketApplication
+"%JAVA_CMD%" --module-path "%APP_DIR%lib\javafx" --add-modules javafx.controls --enable-native-access=javafx.graphics -Djava.library.path="%APP_DIR%lib\javafx-bin" -cp "%APP_DIR%GuessMarket-JavaFX.jar;%APP_DIR%GuessMarket-Core.jar;%APP_DIR%lib\jaxb\*;%APP_DIR%lib\gson\*" guessmarket.javafx.GuessMarketApplication
 exit /b %errorlevel%

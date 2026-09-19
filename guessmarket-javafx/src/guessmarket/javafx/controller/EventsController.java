@@ -12,6 +12,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.concurrent.Task;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -60,7 +61,17 @@ public final class EventsController {
 
     public void refreshEvents() {
         Integer selectedId = selectedEvent == null ? null : selectedEvent.id();
-        events.setAll(engine.getEventSummaries());
+        Task<List<EventDTO>> task = new Task<>() {
+            @Override protected List<EventDTO> call() { return engine.getEventSummaries(); }
+        };
+        task.setOnSucceeded(event -> applyEvents(task.getValue(), selectedId));
+        task.setOnFailed(event -> showDetailsError(new RuntimeException(messageOf(task.getException()))));
+        Thread worker = new Thread(task, "guessmarket-events-refresh");
+        worker.setDaemon(true); worker.start();
+    }
+
+    private void applyEvents(List<EventDTO> refreshed, Integer selectedId) {
+        events.setAll(refreshed);
         updateFilterPredicate();
         restoreSelection(selectedId);
     }
@@ -234,8 +245,18 @@ public final class EventsController {
 
     private void refreshSelectedDetails() {
         if (selectedEvent == null) return;
+        int eventId = selectedEvent.id();
+        Task<EventStateDTO> task = new Task<>() {
+            @Override protected EventStateDTO call() { return engine.getEventState(eventId); }
+        };
+        task.setOnSucceeded(event -> showState(task.getValue()));
+        task.setOnFailed(event -> showDetailsError(new RuntimeException(messageOf(task.getException()))));
+        Thread worker = new Thread(task, "guessmarket-event-details");
+        worker.setDaemon(true); worker.start();
+    }
+
+    private void showState(EventStateDTO state) {
         try {
-            EventStateDTO state = engine.getEventState(selectedEvent.id());
             idValue.setText(Integer.toString(state.id()));
             nameValue.setText(state.eventName());
             descriptionValue.setText(state.description());

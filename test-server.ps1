@@ -18,7 +18,8 @@ $runtimeClasspath = $testClasses + [IO.Path]::PathSeparator + $classpath
 foreach ($testClass in @(
     'guessmarket.server.ServerFoundationTest',
     'guessmarket.server.RuntimeUserApiTest',
-    'guessmarket.server.Ex03XmlUploadTest'
+    'guessmarket.server.Ex03XmlUploadTest',
+    'guessmarket.server.TradingApiTest'
 )) {
     & java -cp $runtimeClasspath $testClass
     if ($LASTEXITCODE -ne 0) { throw "Server test failed: $testClass" }
