@@ -27,6 +27,7 @@ if ($LASTEXITCODE -ne 0) { throw 'JavaFX test compilation failed' }
 
 foreach ($testClass in @(
     'guessmarket.javafx.client.GuessMarketApiClientTest',
+    'guessmarket.javafx.client.SynchronizationServiceTest',
     'guessmarket.javafx.controller.CreateEventWorkflowTest',
     'guessmarket.javafx.controller.EventsControllerFilterTest',
     'guessmarket.javafx.controller.UsersControllerWorkflowTest',

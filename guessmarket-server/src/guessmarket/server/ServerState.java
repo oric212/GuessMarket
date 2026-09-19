@@ -7,6 +7,7 @@ import guessmarket.dto.EventStateDTO;
 import guessmarket.dto.PurchaseResultDTO;
 import guessmarket.dto.OrderSubmissionResultDTO;
 import guessmarket.domain.OrderSide;
+import guessmarket.dto.ChatMessageDTO;
 import guessmarket.service.GuessMarketEngine;
 
 import java.util.LinkedHashMap;
@@ -23,6 +24,8 @@ public final class ServerState {
     private final Engine engine;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     private final Map<String, String> usernamesBySessionToken = new LinkedHashMap<>();
+    private final List<ChatMessageDTO> chatMessages = new java.util.ArrayList<>();
+    private long nextChatSequence = 1;
 
     public record Login(String sessionToken, UserDTO user) {}
 
@@ -128,6 +131,29 @@ public final class ServerState {
     public EventStateDTO closeEvent(String sessionToken, int eventId, int winningOptionIndex) {
         return authenticatedWrite(sessionToken,
                 username -> engine.closeEvent(username, eventId, winningOptionIndex));
+    }
+
+    public ChatMessageDTO sendChatMessage(String sessionToken, String message) {
+        lock.writeLock().lock();
+        try {
+            String sender = requireSessionUsername(sessionToken);
+            ChatMessageDTO chat = new ChatMessageDTO(
+                    nextChatSequence++, sender, message, System.currentTimeMillis());
+            chatMessages.add(chat);
+            return chat;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public List<ChatMessageDTO> chatMessagesAfter(String sessionToken, long afterSequence) {
+        lock.readLock().lock();
+        try {
+            requireSessionUsername(sessionToken);
+            return chatMessages.stream().filter(message -> message.sequence() > afterSequence).toList();
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     private <T> T authenticatedWrite(String sessionToken, Function<String, T> operation) {

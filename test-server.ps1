@@ -19,7 +19,8 @@ foreach ($testClass in @(
     'guessmarket.server.ServerFoundationTest',
     'guessmarket.server.RuntimeUserApiTest',
     'guessmarket.server.Ex03XmlUploadTest',
-    'guessmarket.server.TradingApiTest'
+    'guessmarket.server.TradingApiTest',
+    'guessmarket.server.ChatApiTest'
 )) {
     & java -cp $runtimeClasspath $testClass
     if ($LASTEXITCODE -ne 0) { throw "Server test failed: $testClass" }

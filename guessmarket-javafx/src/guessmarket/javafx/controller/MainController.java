@@ -3,6 +3,9 @@ package guessmarket.javafx.controller;
 import guessmarket.api.Engine;
 import guessmarket.javafx.view.AnimationSettings;
 import guessmarket.javafx.view.SkinTheme;
+import guessmarket.javafx.client.GuessMarketApiClient;
+import guessmarket.javafx.client.SyncSnapshot;
+import guessmarket.javafx.client.SynchronizationService;
 import javafx.animation.FadeTransition;
 import javafx.animation.ScaleTransition;
 import javafx.concurrent.Task;
@@ -36,6 +39,8 @@ public final class MainController {
     private final ComboBox<SkinTheme> skinSelector = new ComboBox<>();
     private final CheckBox animationsEnabled = new CheckBox("Enable animations");
     private final AnimationSettings animationSettings = new AnimationSettings();
+    private final ChatController chatController;
+    private final SynchronizationService synchronization;
 
     public MainController(Engine engine, Stage owner) {
         this(engine, owner, null);
@@ -48,8 +53,18 @@ public final class MainController {
         this.eventsController = new EventsController(engine);
         this.usersController = new UsersController(
                 engine, this::refreshApplication, animationSettings::isEnabled, loggedInUsername);
+        if (engine instanceof GuessMarketApiClient api) {
+            this.chatController = new ChatController(api);
+            this.synchronization = new SynchronizationService(
+                    api, eventsController::selectedEventId, usersController::selectedActionEventId,
+                    this::applySnapshot, statusLabel::setText);
+        } else {
+            this.chatController = null;
+            this.synchronization = null;
+        }
         buildView();
-        refreshApplicationAsync();
+        if (synchronization != null) synchronization.start();
+        else refreshApplicationAsync();
     }
 
     public Parent getView() {
@@ -62,9 +77,11 @@ public final class MainController {
 
         Tab eventsTab = new Tab("Events", eventsController.getView());
         Tab usersTab = new Tab("Users", usersController.getView());
+        Tab chatTab = chatController == null ? null : new Tab("Chat", chatController.getView());
         eventsTab.setClosable(false);
         usersTab.setClosable(false);
         navigation.getTabs().setAll(eventsTab, usersTab);
+        if (chatTab != null) { chatTab.setClosable(false); navigation.getTabs().add(chatTab); }
         navigation.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         navigation.getSelectionModel().selectedItemProperty().addListener(
                 (observable, previous, selected) -> animateTabSwitch(selected));
@@ -198,6 +215,20 @@ public final class MainController {
     private void refreshApplication() {
         usersController.refreshUsers();
         eventsController.refreshEvents();
+    }
+
+    private void applySnapshot(SyncSnapshot snapshot) {
+        int eventId = eventsController.selectedEventId();
+        int actionId = usersController.selectedActionEventId();
+        eventsController.applySynchronizedEvents(
+                snapshot.events(), snapshot.selectedEventDetails().get(eventId));
+        usersController.applySynchronizedUsers(
+                snapshot.users(), snapshot.events(), snapshot.selectedEventDetails().get(actionId));
+        if (chatController != null) chatController.appendMessages(snapshot.chatMessages());
+    }
+
+    public void close() {
+        if (synchronization != null) synchronization.close();
     }
 
     private void refreshApplicationAsync() {

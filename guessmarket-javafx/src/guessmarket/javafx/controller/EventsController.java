@@ -48,6 +48,7 @@ public final class EventsController {
     private final VBox methodDetails = new VBox();
     private final VBox participantsArea = new VBox();
     private EventDTO selectedEvent;
+    private boolean applyingSnapshot;
 
     public EventsController(Engine engine) {
         this.engine = engine;
@@ -58,6 +59,22 @@ public final class EventsController {
     }
 
     public Parent getView() { return root; }
+
+    public int selectedEventId() { return selectedEvent == null ? -1 : selectedEvent.id(); }
+
+    public void applySynchronizedEvents(List<EventDTO> refreshed, EventStateDTO selectedDetails) {
+        Integer selectedId = selectedEvent == null ? null : selectedEvent.id();
+        applyingSnapshot = true;
+        try {
+            if (!events.equals(refreshed)) events.setAll(refreshed);
+            updateFilterPredicate();
+            restoreSelection(selectedId);
+        } finally {
+            applyingSnapshot = false;
+        }
+        if (selectedDetails != null && selectedEvent != null
+                && selectedDetails.id() == selectedEvent.id()) showState(selectedDetails);
+    }
 
     public void refreshEvents() {
         Integer selectedId = selectedEvent == null ? null : selectedEvent.id();
@@ -240,7 +257,7 @@ public final class EventsController {
     private void selectEvent(EventDTO event) {
         if (event == null) return;
         selectedEvent = event;
-        refreshSelectedDetails();
+        if (!applyingSnapshot) refreshSelectedDetails();
     }
 
     private void refreshSelectedDetails() {
@@ -313,7 +330,7 @@ public final class EventsController {
         if (preferred != null) {
             selectedEvent = preferred;
             eventTable.getSelectionModel().select(preferred);
-            refreshSelectedDetails();
+            if (!applyingSnapshot) refreshSelectedDetails();
         } else if (!filteredEvents.isEmpty()) {
             eventTable.getSelectionModel().selectFirst();
         } else {

@@ -84,6 +84,7 @@ public final class UsersController {
     private EventDTO selectedActionEvent;
     private EventStateDTO selectedActionState;
     private Integer selectedParticipationEventId;
+    private boolean applyingSnapshot;
 
     public UsersController(Engine engine, Runnable refreshApplication, BooleanSupplier animationsEnabled) {
         this(engine, refreshApplication, animationsEnabled, null);
@@ -107,6 +108,33 @@ public final class UsersController {
     }
 
     public Parent getView() { return root; }
+    public int selectedActionEventId() { return selectedActionEvent == null ? -1 : selectedActionEvent.id(); }
+
+    public void applySynchronizedUsers(
+            List<UserDTO> refreshed, List<EventDTO> allEvents, EventStateDTO actionDetails) {
+        String selectedName = selectedUser == null ? loggedInUsername : selectedUser.username();
+        Integer eventId = selectedActionEvent == null ? null : selectedActionEvent.id();
+        Integer participationId = selectedParticipationEventId;
+        applyingSnapshot = true;
+        try {
+            if (!users.equals(refreshed)) users.setAll(refreshed);
+            UserDTO selected = findUser(users, selectedName);
+            if (selected == null) selected = findUser(users, loggedInUsername);
+            if (selected == null && !users.isEmpty()) selected = users.getFirst();
+            if (selected == null) { clearWorkspace(); return; }
+            userTable.getSelectionModel().select(selected);
+            applyUserWorkspace(new UserWorkspace(selected, allEvents), selectedName, eventId, participationId);
+        } finally {
+            applyingSnapshot = false;
+        }
+        if (actionDetails != null && selectedActionEvent != null
+                && actionDetails.id() == selectedActionEvent.id()
+                && !actionDetails.equals(selectedActionState)) {
+            selectedActionState = actionDetails;
+            showEventContext(actionDetails);
+            updateActionAvailability();
+        }
+    }
 
     public void refreshUsers() {
         String username = selectedUser == null ? null : selectedUser.username();
@@ -310,7 +338,7 @@ public final class UsersController {
         userTable.getColumns().add(column("Market Maker", dto -> dto.marketMaker() ? "Yes" : "No", 110));
         userTable.getColumns().add(column("Status", UsersController::statusOf, 90));
         userTable.getSelectionModel().selectedItemProperty().addListener(
-                (observable, oldValue, value) -> { if (value != null) selectUser(value); });
+                (observable, oldValue, value) -> { if (value != null && !applyingSnapshot) selectUser(value); });
     }
 
     private void configureMarketMakerTable() {
@@ -355,7 +383,7 @@ public final class UsersController {
         actionEvents.getColumns().add(column("Participates", dto -> participatesIn(dto.id()) ? "Yes" : "No", 100));
         actionEvents.setPrefHeight(185);
         actionEvents.getSelectionModel().selectedItemProperty().addListener(
-                (observable, oldValue, value) -> { if (value != null) selectActionEvent(value); });
+                (observable, oldValue, value) -> { if (value != null && !applyingSnapshot) selectActionEvent(value); });
     }
 
     private void configureActions() {
@@ -421,11 +449,16 @@ public final class UsersController {
 
             List<EventDTO> allEvents = workspace.events();
             Map<Integer, EventDTO> byId = allEvents.stream().collect(Collectors.toMap(EventDTO::id, Function.identity()));
-            marketMakerEvents.getItems().setAll(selectedUser.marketMakerEventIds().stream()
-                    .map(byId::get).filter(Objects::nonNull).toList());
-            participations.getItems().setAll(selectedUser.participations());
-            accountTransactions.getItems().setAll(selectedUser.accountTransactions());
-            actionEvents.getItems().setAll(allEvents);
+            List<EventDTO> mmEvents = selectedUser.marketMakerEventIds().stream()
+                    .map(byId::get).filter(Objects::nonNull).toList();
+            if (!marketMakerEvents.getItems().equals(mmEvents)) marketMakerEvents.getItems().setAll(mmEvents);
+            if (!participations.getItems().equals(selectedUser.participations())) {
+                participations.getItems().setAll(selectedUser.participations());
+            }
+            if (!accountTransactions.getItems().equals(selectedUser.accountTransactions())) {
+                accountTransactions.getItems().setAll(selectedUser.accountTransactions());
+            }
+            if (!actionEvents.getItems().equals(allEvents)) actionEvents.getItems().setAll(allEvents);
             restoreParticipation(participationId);
             restoreActionEvent(eventId);
             emptyDetails.setVisible(false);
@@ -532,6 +565,9 @@ public final class UsersController {
     }
 
     private void showEventContext(EventStateDTO state) {
+        String previousWinner = closeWinner.getValue();
+        String previousLmsrOption = lmsrOption.getValue();
+        String previousOrderOption = orderOption.getValue();
         GridPane common = infoGrid();
         addInfoRow(common, 0, "Event", new Label(state.eventName()));
         addInfoRow(common, 1, "Method / state", new Label(state.tradingMethod() + " / " + state.eventState()));
@@ -560,9 +596,14 @@ public final class UsersController {
         closeWinner.getItems().setAll(state.options());
         lmsrOption.getItems().setAll(state.options());
         orderOption.getItems().setAll(state.options());
-        closeWinner.getSelectionModel().selectFirst();
-        lmsrOption.getSelectionModel().selectFirst();
-        orderOption.getSelectionModel().selectFirst();
+        selectPreserving(closeWinner, previousWinner);
+        selectPreserving(lmsrOption, previousLmsrOption);
+        selectPreserving(orderOption, previousOrderOption);
+    }
+
+    private static void selectPreserving(ComboBox<String> combo, String previous) {
+        if (previous != null && combo.getItems().contains(previous)) combo.setValue(previous);
+        else combo.getSelectionModel().selectFirst();
     }
 
     private String selectedUserPosition(String option) {

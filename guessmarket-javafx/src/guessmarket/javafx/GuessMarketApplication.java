@@ -13,6 +13,7 @@ import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
 public final class GuessMarketApplication extends Application {
+    private MainController mainController;
     @Override
     public void start(Stage stage) {
         stage.setTitle("Guess Market Login");
@@ -62,14 +63,18 @@ public final class GuessMarketApplication extends Application {
     }
 
     private void showMain(Stage stage, GuessMarketApiClient client) {
-        MainController controller = new MainController(client, stage, client.username());
-        Scene scene = new Scene(controller.getView(), 1280, 800);
+        mainController = new MainController(client, stage, client.username());
+        Scene scene = new Scene(mainController.getView(), 1280, 800);
         addStylesheet(scene);
         Font.getDefault();
         stage.setTitle("Guess Market — " + client.username());
         stage.setMinWidth(560);
         stage.setMinHeight(400);
         stage.setScene(scene);
+    }
+
+    @Override public void stop() {
+        if (mainController != null) mainController.close();
     }
 
     private static void addStylesheet(Scene scene) {

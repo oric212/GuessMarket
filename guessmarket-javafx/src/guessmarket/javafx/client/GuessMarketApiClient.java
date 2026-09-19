@@ -50,6 +50,15 @@ public final class GuessMarketApiClient implements Engine {
     public String username() { return username; }
     public String sessionToken() { return sessionToken; }
 
+    public List<ChatMessageDTO> fetchChatMessages(long afterSequence) {
+        return send("chat/messages?after=" + afterSequence, "GET", null,
+                new TypeToken<List<ChatMessageDTO>>() {}.getType(), true);
+    }
+
+    public ChatMessageDTO sendChatMessage(String message) {
+        return sendJson("chat/messages", "POST", new ChatRequest(message), ChatMessageDTO.class, true);
+    }
+
     @Override public List<EventDTO> getEventSummaries() {
         return send("events", "GET", null, new TypeToken<List<EventDTO>>() {}.getType(), false);
     }
@@ -183,4 +192,5 @@ public final class GuessMarketApiClient implements Engine {
     private record PublicUser(String username, double accountBalance, boolean marketMaker) {}
     private record UploadResponse(boolean success, int eventsAdded, List<EventDTO> events) {}
     private record ApiError(boolean success, String code, String message) {}
+    private record ChatRequest(String message) {}
 }

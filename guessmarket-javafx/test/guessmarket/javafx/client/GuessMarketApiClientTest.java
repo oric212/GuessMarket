@@ -34,15 +34,21 @@ public final class GuessMarketApiClientTest {
             client.closeEvent("ignored", 7, 1);
             client.importEventsFromEx03Xml(new java.io.ByteArrayInputStream(
                     "<Guess-Market/>".getBytes(StandardCharsets.UTF_8)), "ignored");
+            check(client.sendChatMessage("hello").senderUsername().equals("Alice"),
+                    "Chat send decoding failed");
+            check(client.fetchChatMessages(4).getFirst().sequence() == 5,
+                    "Chat delta decoding failed");
 
             check(requests.stream().filter(r -> r.path().startsWith("/api/user/")
+                            || r.path().equals("/api/chat/messages")
                             || r.path().matches("/api/events/\\d+/(start|purchases|orders|close)")
                             || r.path().equals("/api/events/upload"))
                             .allMatch(r -> "token-1".equals(r.session())),
                     "Authenticated request omitted the session header");
             check(paths(requests).containsAll(List.of("/api/events", "/api/user/me", "/api/users",
                     "/api/user/account/topup", "/api/events/7/start", "/api/events/7/purchases",
-                    "/api/events/7/orders", "/api/events/7/close", "/api/events/upload")),
+                    "/api/events/7/orders", "/api/events/7/close", "/api/events/upload",
+                    "/api/chat/messages")),
                     "One or more API routes were not called");
             check(requests.stream().filter(r -> r.path().equals("/api/events/upload")).findFirst()
                             .orElseThrow().body().contains("<Guess-Market/>"),
@@ -80,6 +86,13 @@ public final class GuessMarketApiClientTest {
             json = user();
         } else if (path.equals("/api/events/upload")) {
             status = 201; json = "{\"success\":true,\"eventsAdded\":0,\"events\":[]}";
+        } else if (path.equals("/api/chat/messages") && exchange.getRequestMethod().equals("POST")) {
+            status = 201;
+            json = "{\"sequence\":5,\"senderUsername\":\"Alice\","
+                    + "\"message\":\"hello\",\"timestampMillis\":1}";
+        } else if (path.equals("/api/chat/messages")) {
+            json = "[{\"sequence\":5,\"senderUsername\":\"Alice\","
+                    + "\"message\":\"hello\",\"timestampMillis\":1}]";
         } else if (path.endsWith("/start") || path.endsWith("/close")) {
             json = "{\"id\":7,\"eventName\":\"E\",\"currentEventAccountBalance\":0,"
                     + "\"totalCommissionCollected\":0,\"optionStateDTOList\":[],\"trades\":[],"
