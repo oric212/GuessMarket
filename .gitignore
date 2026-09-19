@@ -32,7 +32,7 @@ bin/
 /nbdist/
 /.nb-gradle/
 
-# Reproducible Exercise 02 packaging output
+# Reproducible submission packaging output
 /submission-build/
 /submission/
 /GuessMarket-EX02.zip
