@@ -1,117 +1,49 @@
 import './styles/application.css';
 import { GuessMarketApi, GuessMarketApiError } from './api/guessMarketApi.js';
 import { sessionService } from './services/sessionService.js';
+import { EventsView } from './views/eventsView.js';
 
 const root = document.querySelector('#app');
-const api = new GuessMarketApi({
-  getSession: () => sessionService.get(),
-  onInvalidSession: () => {
-    sessionService.clear();
-    renderLogin('Your session is no longer valid. Please log in again.');
-  },
-});
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>'"]/g, (character) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
-  })[character]);
-}
+let activeView = null;
+const stopActiveView = () => { activeView?.unmount?.(); activeView = null; };
+function returnToLogin(message) { stopActiveView(); sessionService.clear(); renderLogin(message); }
+const api = new GuessMarketApi({ getSession: () => sessionService.get(), onInvalidSession: () => returnToLogin('Your session is no longer valid. Please log in again.') });
+const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 
 function renderLogin(message = '') {
-  root.innerHTML = `
-    <main class="login-layout">
-      <section class="login-card" aria-labelledby="app-title">
-        <p class="eyebrow">Prediction market</p>
-        <h1 id="app-title">Guess Market</h1>
-        <p class="intro">Sign in with a username to connect to the market server.</p>
-        <form id="login-form" novalidate>
-          <label for="username">Username</label>
-          <input id="username" name="username" type="text" autocomplete="username"
-                 maxlength="80" autofocus required>
-          <button type="submit">Log in</button>
-        </form>
-        <p id="status" class="status ${message ? 'error' : ''}" role="status" aria-live="polite">${escapeHtml(message)}</p>
-      </section>
-    </main>`;
-
-  const form = document.querySelector('#login-form');
-  const input = document.querySelector('#username');
-  const button = form.querySelector('button');
-  const status = document.querySelector('#status');
+  stopActiveView();
+  root.innerHTML = `<main class="login-layout"><section class="login-card" aria-labelledby="app-title"><p class="eyebrow">Prediction market</p><h1 id="app-title">Guess Market</h1><p class="intro">Sign in with a username to connect to the market server.</p><form id="login-form" novalidate><label for="username">Username</label><input id="username" name="username" type="text" autocomplete="username" maxlength="80" autofocus required><button type="submit">Log in</button></form><p id="status" class="status ${message ? 'error' : ''}" role="status" aria-live="polite">${escapeHtml(message)}</p></section></main>`;
+  const form = root.querySelector('#login-form'); const input = root.querySelector('#username'); const button = form.querySelector('button'); const status = root.querySelector('#status');
   form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const username = input.value.trim();
-    if (!username) {
-      status.textContent = 'Username cannot be blank.';
-      status.className = 'status error';
-      input.focus();
-      return;
-    }
-
-    input.disabled = true;
-    button.disabled = true;
-    button.textContent = 'Logging in…';
-    status.textContent = 'Connecting to server…';
-    status.className = 'status';
+    event.preventDefault(); const username = input.value.trim();
+    if (!username) { status.textContent = 'Username cannot be blank.'; status.className = 'status error'; input.focus(); return; }
+    input.disabled = true; button.disabled = true; button.textContent = 'Logging in…'; status.textContent = 'Connecting to server…'; status.className = 'status';
     try {
       const response = await api.login(username);
-      if (!response?.sessionToken || !response?.user?.username) {
-        throw new GuessMarketApiError('Login response is missing session data', {
-          code: 'MALFORMED_RESPONSE',
-        });
-      }
-      sessionService.save(response.user.username, response.sessionToken);
-      renderApplication(response.user.username);
+      if (!response?.sessionToken || !response?.user?.username) throw new GuessMarketApiError('Login response is missing session data', { code: 'MALFORMED_RESPONSE' });
+      sessionService.save(response.user.username, response.sessionToken); renderApplication(response.user.username);
     } catch (error) {
-      status.textContent = error instanceof GuessMarketApiError
-        ? error.message : 'Login failed unexpectedly.';
-      status.className = 'status error';
-      input.disabled = false;
-      button.disabled = false;
-      button.textContent = 'Log in';
-      input.focus();
+      status.textContent = error instanceof GuessMarketApiError ? error.message : 'Login failed unexpectedly.'; status.className = 'status error'; input.disabled = false; button.disabled = false; button.textContent = 'Log in'; input.focus();
     }
   });
 }
 
 function renderApplication(username) {
-  root.innerHTML = `
-    <header class="app-header">
-      <a class="brand" href="#" aria-label="Guess Market home">Guess Market</a>
-      <nav aria-label="Main navigation">
-        <button type="button" aria-current="page">Events</button>
-        <button type="button" disabled>Users</button>
-      </nav>
-      <div class="account">
-        <span>Signed in as <strong>${escapeHtml(username)}</strong></span>
-        <button id="clear-session" class="quiet-button" type="button">Clear session</button>
-      </div>
-    </header>
-    <main class="content">
-      <section class="placeholder" aria-labelledby="welcome-heading">
-        <p class="eyebrow">EX04 foundation</p>
-        <h1 id="welcome-heading">Connected application shell</h1>
-        <p>The Events and Users screens will be added in the next implementation stage.</p>
-        <p id="status" class="status" role="status" aria-live="polite">Session restored for this browser tab.</p>
-      </section>
-    </main>`;
-  document.querySelector('#clear-session').addEventListener('click', () => {
-    sessionService.clear();
-    renderLogin();
-  });
+  stopActiveView();
+  root.innerHTML = `<header class="app-header"><button class="brand" type="button" data-route="events">Guess Market</button><nav aria-label="Main navigation"><button type="button" data-route="events">Events</button><button type="button" data-route="user">User</button></nav><div class="account"><span>Signed in as <strong>${escapeHtml(username)}</strong></span><button id="clear-session" class="quiet-button" type="button">Clear session</button></div></header><main id="view-root" class="content"></main>`;
+  root.querySelector('#clear-session').addEventListener('click', () => returnToLogin('Session cleared.'));
+  root.querySelectorAll('[data-route]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.route)));
+  navigate('events');
+}
+
+function navigate(route) {
+  stopActiveView();
+  root.querySelectorAll('nav [data-route]').forEach((button) => { if (button.dataset.route === route) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
+  const container = root.querySelector('#view-root');
+  if (route === 'user') { container.innerHTML = '<section class="placeholder" aria-labelledby="user-heading"><p class="eyebrow">Coming next</p><h1 id="user-heading">User</h1><p>The complete User screen will be implemented in the next EX04 stage.</p></section>'; return; }
+  activeView = new EventsView({ container, api, onInvalidSession: () => returnToLogin('Your session is no longer valid. Please log in again.') }); activeView.mount();
 }
 
 const session = sessionService.get();
-if (session) {
-  renderApplication(session.username);
-  api.getCurrentUser()
-    .then((user) => renderApplication(user.username))
-    .catch((error) => {
-      if (!(error instanceof GuessMarketApiError && error.invalidSession)) {
-        document.querySelector('#status').textContent = error.message;
-        document.querySelector('#status').className = 'status error';
-      }
-    });
-} else {
-  renderLogin();
-}
+if (!session) renderLogin();
+else api.getCurrentUser().then((user) => renderApplication(user.username)).catch((error) => { if (!(error instanceof GuessMarketApiError && error.invalidSession)) renderLogin(error.message); });

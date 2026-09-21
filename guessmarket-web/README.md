@@ -17,5 +17,7 @@ configuration and leaves the server deployment unchanged.
 Use `npm run build` to create the production bundle in `dist`, `npm run preview`
 to inspect that bundle locally, and `npm test` to run the API client contract tests.
 
-This foundation intentionally includes only login and an authenticated application
-shell. The complete Events and Users screens belong to the next implementation stage.
+The authenticated Events screen polls every 850 ms and presents server event summaries,
+client-side method/state/commission filters, and conditional LMSR or Order Book details.
+Its selection and filters remain stable while fresh server snapshots are applied. The
+User navigation target remains a placeholder for the next implementation stage.
