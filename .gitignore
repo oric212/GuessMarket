@@ -13,6 +13,10 @@ target/
 *.jar
 *.war
 
+### Frontend build artifacts ###
+node_modules/
+guessmarket-web/dist/
+
 ### Eclipse ###
 .apt_generated
 .classpath

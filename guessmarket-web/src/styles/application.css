@@ -1,0 +1,57 @@
+:root {
+  color: #172033;
+  background: #f2f5fb;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .6; }
+
+.login-layout {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at top left, #d9e7ff, transparent 42%), #f2f5fb;
+}
+
+.login-card, .placeholder {
+  width: min(100%, 520px);
+  padding: 40px;
+  border: 1px solid #dce3ef;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgb(34 52 83 / 10%);
+}
+
+.eyebrow { margin: 0 0 8px; color: #476bca; font-size: .78rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+h1 { margin: 0; font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.04em; }
+.intro { margin: 12px 0 28px; color: #5f697c; line-height: 1.6; }
+form { display: grid; gap: 10px; }
+label { font-size: .9rem; font-weight: 700; }
+input { width: 100%; padding: 13px 14px; border: 1px solid #bdc8da; border-radius: 9px; outline: none; }
+input:focus { border-color: #375fca; box-shadow: 0 0 0 3px rgb(55 95 202 / 14%); }
+form button { margin-top: 6px; padding: 13px 18px; border: 0; border-radius: 9px; color: #fff; background: #3157bf; font-weight: 750; }
+.status { min-height: 24px; margin: 18px 0 0; color: #5f697c; }
+.status.error { color: #b12535; }
+
+.app-header { display: flex; align-items: center; gap: 28px; min-height: 72px; padding: 12px clamp(20px, 5vw, 64px); border-bottom: 1px solid #dce3ef; background: #fff; }
+.brand { color: #172033; font-size: 1.25rem; font-weight: 800; text-decoration: none; }
+nav { display: flex; gap: 8px; }
+nav button, .quiet-button { padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: #4e5d74; }
+nav button[aria-current="page"] { color: #3157bf; background: #edf2ff; font-weight: 700; }
+.account { display: flex; align-items: center; gap: 12px; margin-left: auto; font-size: .9rem; }
+.quiet-button { border: 1px solid #bdc8da; }
+.content { padding: clamp(36px, 8vw, 96px) 24px; }
+.placeholder { margin: 0 auto; }
+.placeholder p:last-child { margin-bottom: 0; }
+
+@media (max-width: 720px) {
+  .app-header { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .account { width: 100%; margin-left: 0; justify-content: space-between; }
+  .login-card, .placeholder { padding: 28px; }
+}
