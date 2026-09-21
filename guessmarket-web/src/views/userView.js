@@ -14,8 +14,8 @@ function optionsHtml(values, selected) {
 }
 
 export class UserView {
-  constructor({ container, api, onInvalidSession }) {
-    this.container = container; this.api = api; this.onInvalidSession = onInvalidSession;
+  constructor({ container, api }) {
+    this.container = container; this.api = api;
     this.publicUsers = []; this.user = null; this.events = []; this.selectedEventId = null; this.eventDetails = null; this.selectedParticipationId = null; this.revision = 0;
     this.sync = new SynchronizationService({ intervalMs: 850, operation: () => this.#fetchSnapshot(), onData: (snapshot) => this.#applySnapshot(snapshot), onError: (error) => this.#pollError(error), onRecovered: () => this.#status('Connection restored. Account is up to date.', false) });
   }
@@ -119,7 +119,7 @@ export class UserView {
     select.value = items.some(([value]) => String(value) === current) ? current : '';
   }
   #updateOptionSelect(select, options) { const currentText = select.selectedOptions[0]?.textContent; const retained = retainValue(options, currentText); select.innerHTML = optionsHtml(options, retained); }
-  #pollError(error) { if (error instanceof GuessMarketApiError && error.invalidSession) { this.sync.stop(); this.onInvalidSession(); return; } this.#status(`${error.message || 'Server temporarily unavailable.'} Retrying automatically…`, true); }
+  #pollError(error) { if (error instanceof GuessMarketApiError && error.invalidSession) { this.sync.stop(); return; } this.#status(`${error.message || 'Server temporarily unavailable.'} Retrying automatically…`, true); }
   #status(message, error) { this.dom.status.textContent = message; this.dom.status.className = `sync-status${error ? ' error' : ''}`; }
   #actionMessage(message, error) { this.dom.actionResult.textContent = message; this.dom.actionResult.className = `action-message${error ? ' error' : ' success'}`; }
   #topupMessage(message, error) { this.dom.topupResult.textContent = message; this.dom.topupResult.className = `action-message${error ? ' error' : ' success'}`; }

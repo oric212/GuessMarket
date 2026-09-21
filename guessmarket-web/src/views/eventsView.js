@@ -40,8 +40,8 @@ function renderDetails(state) {
 }
 
 export class EventsView {
-  constructor({ container, api, onInvalidSession }) {
-    this.container = container; this.api = api; this.onInvalidSession = onInvalidSession;
+  constructor({ container, api }) {
+    this.container = container; this.api = api;
     this.events = []; this.selectedId = null; this.details = null;
     this.filters = { method: ALL, state: ALL, commission: ALL };
     this.sync = new SynchronizationService({ intervalMs: 850, operation: () => this.#fetchSnapshot(), onData: (snapshot) => this.#applySnapshot(snapshot), onError: (error) => this.#showError(error), onRecovered: () => this.#showStatus('Connection restored. Events are up to date.', false) });
@@ -88,7 +88,7 @@ export class EventsView {
     const scrollTop = this.detailsBody.scrollTop; this.detailsBody.innerHTML = renderDetails(this.details); this.detailsBody.scrollTop = scrollTop;
   }
   #showError(error) {
-    if (error instanceof GuessMarketApiError && error.invalidSession) { this.sync.stop(); this.onInvalidSession(); return; }
+    if (error instanceof GuessMarketApiError && error.invalidSession) { this.sync.stop(); return; }
     this.#showStatus(`${error.message || 'Server temporarily unavailable.'} Retrying automatically…`, true);
     if (!this.events.length) { this.empty.hidden = false; this.empty.textContent = 'Events could not be loaded. The application will retry automatically.'; }
   }

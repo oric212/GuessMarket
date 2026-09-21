@@ -18,3 +18,33 @@ test('temporary failures are reported and followed by recovery', async () => {
   service.start(); await wait(25); service.stop();
   assert.equal(failures, 1); assert.equal(recoveries, 1);
 });
+test('an immediate refresh requested in flight runs directly after that cycle', async () => {
+  let calls = 0;
+  let releaseFirst;
+  const first = new Promise((resolve) => { releaseFirst = resolve; });
+  const service = new SynchronizationService({
+    intervalMs: 10_000,
+    operation: async () => { calls += 1; if (calls === 1) await first; return calls; },
+    onData: () => {},
+    onError: assert.fail,
+  });
+  service.start();
+  service.refreshNow();
+  releaseFirst();
+  await wait(15);
+  service.stop();
+  assert.equal(calls, 2);
+});
+test('one outage reports one error even across repeated failed cycles', async () => {
+  let failures = 0;
+  const service = new SynchronizationService({
+    intervalMs: 2,
+    operation: async () => { throw new Error('offline'); },
+    onData: assert.fail,
+    onError: () => { failures += 1; },
+  });
+  service.start();
+  await wait(15);
+  service.stop();
+  assert.equal(failures, 1);
+});

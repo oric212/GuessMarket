@@ -7,7 +7,10 @@ import { UserView } from './views/userView.js';
 const root = document.querySelector('#app');
 let activeView = null;
 const stopActiveView = () => { activeView?.unmount?.(); activeView = null; };
-function returnToLogin(message) { stopActiveView(); sessionService.clear(); renderLogin(message); }
+function returnToLogin(message) {
+  if (root.querySelector('#login-form') && sessionService.get() === null) return;
+  stopActiveView(); sessionService.clear(); renderLogin(message);
+}
 const api = new GuessMarketApi({ getSession: () => sessionService.get(), onInvalidSession: () => returnToLogin('Your session is no longer valid. Please log in again.') });
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 
@@ -42,7 +45,7 @@ function navigate(route) {
   root.querySelectorAll('nav [data-route]').forEach((button) => { if (button.dataset.route === route) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   const container = root.querySelector('#view-root');
   const View = route === 'user' ? UserView : EventsView;
-  activeView = new View({ container, api, onInvalidSession: () => returnToLogin('Your session is no longer valid. Please log in again.') }); activeView.mount();
+  activeView = new View({ container, api }); activeView.mount();
 }
 
 const session = sessionService.get();
