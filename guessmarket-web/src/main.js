@@ -2,6 +2,7 @@ import './styles/application.css';
 import { GuessMarketApi, GuessMarketApiError } from './api/guessMarketApi.js';
 import { sessionService } from './services/sessionService.js';
 import { EventsView } from './views/eventsView.js';
+import { UserView } from './views/userView.js';
 
 const root = document.querySelector('#app');
 let activeView = null;
@@ -40,8 +41,8 @@ function navigate(route) {
   stopActiveView();
   root.querySelectorAll('nav [data-route]').forEach((button) => { if (button.dataset.route === route) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   const container = root.querySelector('#view-root');
-  if (route === 'user') { container.innerHTML = '<section class="placeholder" aria-labelledby="user-heading"><p class="eyebrow">Coming next</p><h1 id="user-heading">User</h1><p>The complete User screen will be implemented in the next EX04 stage.</p></section>'; return; }
-  activeView = new EventsView({ container, api, onInvalidSession: () => returnToLogin('Your session is no longer valid. Please log in again.') }); activeView.mount();
+  const View = route === 'user' ? UserView : EventsView;
+  activeView = new View({ container, api, onInvalidSession: () => returnToLogin('Your session is no longer valid. Please log in again.') }); activeView.mount();
 }
 
 const session = sessionService.get();

@@ -17,7 +17,8 @@ configuration and leaves the server deployment unchanged.
 Use `npm run build` to create the production bundle in `dist`, `npm run preview`
 to inspect that bundle locally, and `npm test` to run the API client contract tests.
 
-The authenticated Events screen polls every 850 ms and presents server event summaries,
-client-side method/state/commission filters, and conditional LMSR or Order Book details.
-Its selection and filters remain stable while fresh server snapshots are applied. The
-User navigation target remains a placeholder for the next implementation stage.
+The authenticated Events and User screens poll every 850 ms while active. Events presents
+server summaries, client-side filters, and conditional market details. User separates
+public-user data from the signed-in user's private account, transactions, assignments and
+participations, and provides top-up, trading, start and close actions through the existing
+server APIs. Selections and unsent form input remain stable while snapshots are applied.
