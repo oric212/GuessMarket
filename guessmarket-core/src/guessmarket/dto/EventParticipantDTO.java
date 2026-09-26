@@ -14,9 +14,9 @@ public record EventParticipantDTO(
         double totalCashPaid,
         double totalCashReceived) {
     public EventParticipantDTO {
-        holdingsByOption = Map.copyOf(holdingsByOption);
-        reservedSellByOption = Map.copyOf(reservedSellByOption);
-        availableToSellByOption = Map.copyOf(availableToSellByOption);
+        holdingsByOption = Collections.unmodifiableMap(new LinkedHashMap<>(holdingsByOption));
+        reservedSellByOption = Collections.unmodifiableMap(new LinkedHashMap<>(reservedSellByOption));
+        availableToSellByOption = Collections.unmodifiableMap(new LinkedHashMap<>(availableToSellByOption));
         currentHoldingValueByOption = Collections.unmodifiableMap(
                 new LinkedHashMap<>(currentHoldingValueByOption));
     }

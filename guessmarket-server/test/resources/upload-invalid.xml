@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Guess-Market><GM-events><GM-event name="Invalid"><description>Bad</description>
+<commission type="on-purchase">100</commission>
+<GM-options><GM-option>A</GM-option><GM-option>B</GM-option></GM-options>
+<GM-method><GM-LMSR><b>10</b></GM-LMSR></GM-method></GM-event></GM-events></Guess-Market>

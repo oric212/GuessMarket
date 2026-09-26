@@ -49,6 +49,9 @@ Select a user on the Users screen and complete the **Create Event** section to c
 
 ## Implementation choices
 
+- Events, LMSR state, holdings, DTOs, and independent Order Book option books support two or more ordered options.
+- Event lifecycle and trading APIs accept either the legacy internal integer ID or the normalized unique event name.
+- EX03 does not define N-outcome MINT semantics; auto-mint therefore remains available only for complementary two-option Order Book events.
 - Ordinary crossing executes at the resting order's price.
 - Auto-mint keeps the resting leg's offered price; the incoming leg is `d - resting price`.
 - OB holding value uses MID, otherwise LAST, otherwise `N/A`.
@@ -71,3 +74,32 @@ Select a user on the Users screen and complete the **Create Event** section to c
 - `UsersController`: selected-user workspace, MM actions, purchases/orders, and notifications.
 
 Framework-free regression programs live under the two test directories. The package ships production classes and CSS only and does not depend on IDE output or source directories.
+
+## EX03 server foundation
+
+`guessmarket-server` is the Tomcat web module. Run `build-server.bat` with Java 25 to produce the single deployable artifact at `server-dist/GuessMarket.war`. The build downloads pinned compile/runtime dependencies into the ignored `.deps` cache, compiles core and server sources, and packages Gson plus JAXB runtime dependencies under `WEB-INF/lib`. The Servlet API is compile-only because Tomcat provides it.
+
+Deploy `GuessMarket.war` to Tomcat 11's `webapps` directory. Its stable context path is `/GuessMarket`, with these initial JSON endpoints:
+
+- `GET /GuessMarket/api/health` returns deployment status.
+- `GET /GuessMarket/api/events` returns immutable event summaries.
+- `GET /GuessMarket/api/events/{id-or-url-encoded-event-name}` returns current event details.
+- `POST /GuessMarket/api/login` accepts `{"username":"Alice"}`, atomically registers a runtime user, and returns a UUID session token.
+- `GET /GuessMarket/api/users` returns only public username, balance, and Market Maker status.
+- `GET /GuessMarket/api/user/me` returns the token owner's private user/account state.
+- `POST /GuessMarket/api/user/account/topup` accepts `{"amount":25.0}` and returns the updated private state.
+- `POST /GuessMarket/api/events/upload` accepts one authenticated multipart field named `file` containing an EX03 `.xml` file.
+- `POST /GuessMarket/api/events/{id}/start` starts an owned event.
+- `POST /GuessMarket/api/events/{id}/purchases` purchases LMSR shares.
+- `POST /GuessMarket/api/events/{id}/orders` submits an Order Book BUY or SELL.
+- `POST /GuessMarket/api/events/{id}/close` closes an owned event with a winning option.
+
+Private endpoints identify the caller with the `X-GuessMarket-Session` header. Usernames are trimmed and unique case-insensitively for the lifetime of the server. EX03 does not specify a nonzero opening grant, so runtime users start at `0.00` and add funds through top-up; EX02 XML users retain their configured initial cash. Logout is not yet required, so registrations and tokens remain active until the in-memory server state is restarted.
+
+Each user account stores real immutable transaction entries rather than reconstructing history. Entries have a deterministic sequence, transaction type, signed balance change, resulting balance, optional event name, and description. Creation, top-up, event funding, purchases/trades, commissions, settlement, and subsidy return all use the centralized account mutation path. Other users never receive this private history.
+
+EX03 uploads are validated from the request stream against `schema/GM-EX3-Schema.xsd`; the raw XML is never saved or written to a temporary file. The schema permits one or two ordered options, while the established event/trading domain requires two options for a loadable event. The EX03 format omits `GM-users` and event `id`, and assigns the authenticated uploader as MM for every imported event. Imports are cumulative and atomic under the server write lock: all events are parsed/prepared first, and any malformed configuration or case-insensitive name collision within the upload or existing market adds nothing. Uploaded events remain `NOT_STARTED`; funding is deferred until the MM explicitly starts them in a later workflow. The legacy EX02 path loader retains its replace/users/ID semantics for regression compatibility.
+
+Errors use HTTP status codes and a JSON body shaped as `{"success":false,"code":"...","message":"..."}`. State lives once per deployed web application in the servlet context and intentionally disappears at restart. `ServerState` applies a fair read/write lock: DTO queries may run concurrently, while login, top-up, upload, lifecycle, and trading calls use the exclusive write path to preserve identity and accounting atomicity. Automatic polling and chat remain deferred to Prompt 6.
+
+The JavaFX application is an HTTP client and never creates an authoritative local engine. It opens on login, defaults to `http://localhost:8080/GuessMarket/api/`, stores the returned session token in memory, and centralizes JSON, multipart upload, headers, and structured error decoding in `GuessMarketApiClient`. Set the `guessmarket.server` system property to override the API base URL. Network calls run on background JavaFX tasks; successful uploads, top-ups, lifecycle operations, and trades immediately refresh affected views. Automatic recurring refresh remains deferred to Prompt 6.

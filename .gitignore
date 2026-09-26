@@ -1,8 +1,21 @@
 ### IntelliJ IDEA ###
+.idea/
+*.iml
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 .kotlin
+
+### Java build artifacts ###
+build/
+target/
+*.class
+*.jar
+*.war
+
+### Frontend build artifacts ###
+node_modules/
+guessmarket-web/dist/
 
 ### Eclipse ###
 .apt_generated
@@ -23,10 +36,27 @@ bin/
 /nbdist/
 /.nb-gradle/
 
-# Reproducible Exercise 02 packaging output
+# Reproducible submission packaging output
 /submission-build/
 /submission/
 /GuessMarket-EX02.zip
+
+# Reproducible EX03 server build/dependency output
+/.deps/
+/server-build/
+/server-dist/
+/tomcat-smoke/
+apache-tomcat-*/
+tomcat-runtime/
+*.log
+
+# Local runtime state and temporary test output
+/save states/
+*.sav
+*.tmp
+*.temp
+/test-output/
+/test-results/
 
 ### VS Code ###
 .vscode/

@@ -16,6 +16,7 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.concurrent.Task;
 import javafx.util.Duration;
 
 import java.text.DecimalFormat;
@@ -31,6 +32,7 @@ public final class UsersController {
     private final Engine engine;
     private final Runnable refreshApplication;
     private final BooleanSupplier animationsEnabled;
+    private final String loggedInUsername;
     private final SplitPane root = new SplitPane();
     private final ObservableList<UserDTO> users = FXCollections.observableArrayList();
     private final TableView<UserDTO> userTable = new TableView<>(users);
@@ -41,6 +43,7 @@ public final class UsersController {
     private final Label statusValue = new Label();
     private final Label blockedWarning = new Label();
     private final TableView<EventDTO> marketMakerEvents = new TableView<>();
+    private final TableView<AccountTransactionDTO> accountTransactions = new TableView<>();
     private final TableView<UserParticipationDTO> participations = new TableView<>();
     private final VBox participationDetails = new VBox();
     private final TableView<EventDTO> actionEvents = new TableView<>();
@@ -81,13 +84,21 @@ public final class UsersController {
     private EventDTO selectedActionEvent;
     private EventStateDTO selectedActionState;
     private Integer selectedParticipationEventId;
+    private boolean applyingSnapshot;
 
     public UsersController(Engine engine, Runnable refreshApplication, BooleanSupplier animationsEnabled) {
+        this(engine, refreshApplication, animationsEnabled, null);
+    }
+
+    public UsersController(Engine engine, Runnable refreshApplication,
+                           BooleanSupplier animationsEnabled, String loggedInUsername) {
         this.engine = Objects.requireNonNull(engine);
         this.refreshApplication = Objects.requireNonNull(refreshApplication);
         this.animationsEnabled = Objects.requireNonNull(animationsEnabled);
+        this.loggedInUsername = loggedInUsername;
         configureUserTable();
         configureMarketMakerTable();
+        configureAccountTransactions();
         configureParticipationTable();
         configureActionEventTable();
         configureActions();
@@ -97,12 +108,50 @@ public final class UsersController {
     }
 
     public Parent getView() { return root; }
+    public int selectedActionEventId() { return selectedActionEvent == null ? -1 : selectedActionEvent.id(); }
+
+    public void applySynchronizedUsers(
+            List<UserDTO> refreshed, List<EventDTO> allEvents, EventStateDTO actionDetails) {
+        String selectedName = selectedUser == null ? loggedInUsername : selectedUser.username();
+        Integer eventId = selectedActionEvent == null ? null : selectedActionEvent.id();
+        Integer participationId = selectedParticipationEventId;
+        applyingSnapshot = true;
+        try {
+            if (!users.equals(refreshed)) users.setAll(refreshed);
+            UserDTO selected = findUser(users, selectedName);
+            if (selected == null) selected = findUser(users, loggedInUsername);
+            if (selected == null && !users.isEmpty()) selected = users.getFirst();
+            if (selected == null) { clearWorkspace(); return; }
+            userTable.getSelectionModel().select(selected);
+            applyUserWorkspace(new UserWorkspace(selected, allEvents), selectedName, eventId, participationId);
+        } finally {
+            applyingSnapshot = false;
+        }
+        if (actionDetails != null && selectedActionEvent != null
+                && actionDetails.id() == selectedActionEvent.id()
+                && !actionDetails.equals(selectedActionState)) {
+            selectedActionState = actionDetails;
+            showEventContext(actionDetails);
+            updateActionAvailability();
+        }
+    }
 
     public void refreshUsers() {
         String username = selectedUser == null ? null : selectedUser.username();
         Integer eventId = selectedActionEvent == null ? null : selectedActionEvent.id();
         Integer participationId = selectedParticipationEventId;
-        users.setAll(engine.getUsers());
+        Task<List<UserDTO>> task = new Task<>() {
+            @Override protected List<UserDTO> call() { return engine.getUsers(); }
+        };
+        task.setOnSucceeded(event -> applyUsers(task.getValue(), username, eventId, participationId));
+        task.setOnFailed(event -> showWorkspaceError("Users could not be loaded: " + messageOf(task.getException())));
+        Thread worker = new Thread(task, "guessmarket-users-refresh");
+        worker.setDaemon(true); worker.start();
+    }
+
+    private void applyUsers(List<UserDTO> refreshed, String username,
+                            Integer eventId, Integer participationId) {
+        users.setAll(refreshed);
         UserDTO retained = findUser(users, username);
         if (retained != null) {
             selectedActionEvent = eventId == null ? null : selectedActionEvent;
@@ -110,7 +159,8 @@ public final class UsersController {
             userTable.getSelectionModel().select(retained);
             selectUser(retained);
         } else if (!users.isEmpty()) {
-            userTable.getSelectionModel().selectFirst();
+            UserDTO own = findUser(users, loggedInUsername);
+            userTable.getSelectionModel().select(own == null ? users.getFirst() : own);
         } else {
             clearWorkspace();
         }
@@ -141,7 +191,7 @@ public final class UsersController {
 
         detailsContent.getChildren().addAll(
                 titled("Account", new VBox(8, account, blockedWarning)),
-                titled("Create Event", buildCreateEventForm()),
+                titled("Account transaction history", accountTransactions),
                 titled("Market Maker assignments", marketMakerEvents),
                 titled("Participations", new VBox(8, participations, participationDetails)),
                 titled("Select an event / Actions", new VBox(10, actionEvents, eventContext, actionArea)));
@@ -285,9 +335,10 @@ public final class UsersController {
         configureTable(userTable, "Load an XML file to display users.");
         userTable.getColumns().add(column("Username", UserDTO::username, 160));
         userTable.getColumns().add(column("Balance", dto -> format(dto.accountBalance()), 105));
+        userTable.getColumns().add(column("Market Maker", dto -> dto.marketMaker() ? "Yes" : "No", 110));
         userTable.getColumns().add(column("Status", UsersController::statusOf, 90));
         userTable.getSelectionModel().selectedItemProperty().addListener(
-                (observable, oldValue, value) -> { if (value != null) selectUser(value); });
+                (observable, oldValue, value) -> { if (value != null && !applyingSnapshot) selectUser(value); });
     }
 
     private void configureMarketMakerTable() {
@@ -297,6 +348,17 @@ public final class UsersController {
         marketMakerEvents.getColumns().add(column("Method", EventDTO::tradingMethod, 115));
         marketMakerEvents.getColumns().add(column("State", EventDTO::eventState, 110));
         marketMakerEvents.setPrefHeight(150);
+    }
+
+    private void configureAccountTransactions() {
+        configureTable(accountTransactions, "No account transactions available.");
+        accountTransactions.getColumns().add(column("#", AccountTransactionDTO::sequence, 55));
+        accountTransactions.getColumns().add(column("Type", AccountTransactionDTO::type, 150));
+        accountTransactions.getColumns().add(column("Change", tx -> format(tx.amountChange()), 100));
+        accountTransactions.getColumns().add(column("Balance", tx -> format(tx.resultingBalance()), 100));
+        accountTransactions.getColumns().add(column("Event", AccountTransactionDTO::eventName, 140));
+        accountTransactions.getColumns().add(column("Description", AccountTransactionDTO::description, 220));
+        accountTransactions.setPrefHeight(170);
     }
 
     private void configureParticipationTable() {
@@ -321,7 +383,7 @@ public final class UsersController {
         actionEvents.getColumns().add(column("Participates", dto -> participatesIn(dto.id()) ? "Yes" : "No", 100));
         actionEvents.setPrefHeight(185);
         actionEvents.getSelectionModel().selectedItemProperty().addListener(
-                (observable, oldValue, value) -> { if (value != null) selectActionEvent(value); });
+                (observable, oldValue, value) -> { if (value != null && !applyingSnapshot) selectActionEvent(value); });
     }
 
     private void configureActions() {
@@ -351,11 +413,28 @@ public final class UsersController {
     }
 
     private void selectUser(UserDTO summary) {
+        String previousUsername = selectedUser == null ? null : selectedUser.username();
+        Integer eventId = selectedActionEvent == null ? null : selectedActionEvent.id();
+        Integer participationId = selectedParticipationEventId;
+        Task<UserWorkspace> task = new Task<>() {
+            @Override protected UserWorkspace call() {
+                UserDTO user = loggedInUsername != null && !loggedInUsername.equalsIgnoreCase(summary.username())
+                        ? summary : engine.getUser(summary.username());
+                return new UserWorkspace(user, engine.getEventSummaries());
+            }
+        };
+        task.setOnSucceeded(event -> applyUserWorkspace(
+                task.getValue(), previousUsername, eventId, participationId));
+        task.setOnFailed(event -> showWorkspaceError(
+                "User details could not be loaded: " + messageOf(task.getException())));
+        Thread worker = new Thread(task, "guessmarket-user-details");
+        worker.setDaemon(true); worker.start();
+    }
+
+    private void applyUserWorkspace(UserWorkspace workspace, String previousUsername,
+                                    Integer eventId, Integer participationId) {
         try {
-            String previousUsername = selectedUser == null ? null : selectedUser.username();
-            Integer eventId = selectedActionEvent == null ? null : selectedActionEvent.id();
-            Integer participationId = selectedParticipationEventId;
-            selectedUser = engine.getUser(summary.username());
+            selectedUser = workspace.user();
             if (previousUsername == null || !previousUsername.equalsIgnoreCase(selectedUser.username())) {
                 actionResult.setText("");
             }
@@ -368,12 +447,18 @@ public final class UsersController {
             blockedWarning.setManaged(selectedUser.blocked());
             createEventButton.setDisable(selectedUser.blocked());
 
-            List<EventDTO> allEvents = engine.getEventSummaries();
+            List<EventDTO> allEvents = workspace.events();
             Map<Integer, EventDTO> byId = allEvents.stream().collect(Collectors.toMap(EventDTO::id, Function.identity()));
-            marketMakerEvents.getItems().setAll(selectedUser.marketMakerEventIds().stream()
-                    .map(byId::get).filter(Objects::nonNull).toList());
-            participations.getItems().setAll(selectedUser.participations());
-            actionEvents.getItems().setAll(allEvents);
+            List<EventDTO> mmEvents = selectedUser.marketMakerEventIds().stream()
+                    .map(byId::get).filter(Objects::nonNull).toList();
+            if (!marketMakerEvents.getItems().equals(mmEvents)) marketMakerEvents.getItems().setAll(mmEvents);
+            if (!participations.getItems().equals(selectedUser.participations())) {
+                participations.getItems().setAll(selectedUser.participations());
+            }
+            if (!accountTransactions.getItems().equals(selectedUser.accountTransactions())) {
+                accountTransactions.getItems().setAll(selectedUser.accountTransactions());
+            }
+            if (!actionEvents.getItems().equals(allEvents)) actionEvents.getItems().setAll(allEvents);
             restoreParticipation(participationId);
             restoreActionEvent(eventId);
             emptyDetails.setVisible(false);
@@ -461,18 +546,28 @@ public final class UsersController {
     private void selectActionEvent(EventDTO event) {
         if (selectedActionEvent == null || selectedActionEvent.id() != event.id()) actionResult.setText("");
         selectedActionEvent = event;
-        try {
-            selectedActionState = engine.getEventState(event.id());
+        Task<EventStateDTO> task = new Task<>() {
+            @Override protected EventStateDTO call() { return engine.getEventState(event.id()); }
+        };
+        task.setOnSucceeded(done -> {
+            selectedActionState = task.getValue();
             showEventContext(selectedActionState);
             updateActionAvailability();
-        } catch (RuntimeException error) {
+        });
+        task.setOnFailed(done -> {
             selectedActionState = null;
-            eventContext.getChildren().setAll(new Label("Event details could not be loaded: " + messageOf(error)));
+            eventContext.getChildren().setAll(new Label(
+                    "Event details could not be loaded: " + messageOf(task.getException())));
             hideActions();
-        }
+        });
+        Thread worker = new Thread(task, "guessmarket-action-event-details");
+        worker.setDaemon(true); worker.start();
     }
 
     private void showEventContext(EventStateDTO state) {
+        String previousWinner = closeWinner.getValue();
+        String previousLmsrOption = lmsrOption.getValue();
+        String previousOrderOption = orderOption.getValue();
         GridPane common = infoGrid();
         addInfoRow(common, 0, "Event", new Label(state.eventName()));
         addInfoRow(common, 1, "Method / state", new Label(state.tradingMethod() + " / " + state.eventState()));
@@ -501,9 +596,14 @@ public final class UsersController {
         closeWinner.getItems().setAll(state.options());
         lmsrOption.getItems().setAll(state.options());
         orderOption.getItems().setAll(state.options());
-        closeWinner.getSelectionModel().selectFirst();
-        lmsrOption.getSelectionModel().selectFirst();
-        orderOption.getSelectionModel().selectFirst();
+        selectPreserving(closeWinner, previousWinner);
+        selectPreserving(lmsrOption, previousLmsrOption);
+        selectPreserving(orderOption, previousOrderOption);
+    }
+
+    private static void selectPreserving(ComboBox<String> combo, String previous) {
+        if (previous != null && combo.getItems().contains(previous)) combo.setValue(previous);
+        else combo.getSelectionModel().selectFirst();
     }
 
     private String selectedUserPosition(String option) {
@@ -515,7 +615,11 @@ public final class UsersController {
     }
 
     private void updateActionAvailability() {
-        ActionAvailability availability = actionAvailability(selectedUser, selectedActionEvent);
+        boolean ownWorkspace = loggedInUsername == null || (selectedUser != null
+                && loggedInUsername.equalsIgnoreCase(selectedUser.username()));
+        ActionAvailability availability = ownWorkspace
+                ? actionAvailability(selectedUser, selectedActionEvent)
+                : new ActionAvailability(false, false, false, false);
         setShown(startPane, availability.start());
         setShown(closePane, availability.close());
         setShown(lmsrPane, availability.lmsrPurchase());
@@ -605,24 +709,20 @@ public final class UsersController {
 
     private void mutate(Action action, String success) { mutate(action, ignored -> success); }
     private void mutate(Action action, Function<Object, String> successText) {
-        boolean wasBlocked = selectedUser.blocked();
-        try {
-            Object result = action.run();
+        startButton.setDisable(true); closeButton.setDisable(true);
+        purchaseButton.setDisable(true); submitOrderButton.setDisable(true);
+        Task<Object> task = new Task<>() {
+            @Override protected Object call() { return action.run(); }
+        };
+        task.setOnSucceeded(event -> {
+            Object result = task.getValue();
             String message = successText.apply(result);
             refreshApplication.run();
-            UserDTO refreshed = engine.getUser(username());
-            selectedUser = refreshed;
             showActionSuccess(message);
-            if (!wasBlocked && refreshed.blocked()) {
-                blockedWarning.setText("Warning: this completed operation made the account negative. "
-                        + "The user is now BLOCKED from future operations.");
-                blockedWarning.setVisible(true);
-                blockedWarning.setManaged(true);
-                updateActionAvailability();
-            }
-        } catch (RuntimeException error) {
-            showActionError(messageOf(error));
-        }
+        });
+        task.setOnFailed(event -> { showActionError(messageOf(task.getException())); updateActionAvailability(); });
+        Thread worker = new Thread(task, "guessmarket-action");
+        worker.setDaemon(true); worker.start();
     }
 
     private Integer positiveInteger(String text, String label) {
@@ -671,6 +771,8 @@ public final class UsersController {
         return selectedUser != null && event.marketMakerUsername().equalsIgnoreCase(selectedUser.username());
     }
 
+    private record UserWorkspace(UserDTO user, List<EventDTO> events) {}
+
     private void clearActionEvent() {
         selectedActionEvent = null;
         selectedActionState = null;
@@ -688,6 +790,7 @@ public final class UsersController {
         selectedParticipationEventId = null;
         marketMakerEvents.getItems().clear();
         participations.getItems().clear();
+        accountTransactions.getItems().clear();
         actionEvents.getItems().clear();
         detailsContent.setVisible(false);
         detailsContent.setManaged(false);

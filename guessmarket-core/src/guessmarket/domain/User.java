@@ -13,9 +13,9 @@ public final class User implements Serializable {
             throw new IllegalArgumentException("Username cannot be blank");
         }
 
-        if (!Double.isFinite(initialCash) || initialCash <= 0) {
+        if (!Double.isFinite(initialCash) || initialCash < 0) {
             throw new IllegalArgumentException(
-                    "Initial cash must be greater than 0"
+                    "Initial cash must be non-negative"
             );
         }
 
@@ -36,16 +36,9 @@ public final class User implements Serializable {
         return blocked;
     }
 
-    void deposit(double amount) {
-        userAccount.deposit(amount);
-    }
-
-    void withdraw(double amount) {
-        userAccount.withdraw(amount);
-
-        if (userAccount.getBalance() < 0) {
-            blocked = true;
-        }
+    void deposit(
+            double amount, AccountTransactionType type, String eventName, String description) {
+        userAccount.deposit(amount, type, eventName, description);
     }
 
     void validateCanPerformActions() {
@@ -54,6 +47,20 @@ public final class User implements Serializable {
                     "User " + username + " is blocked"
             );
         }
+    }
+
+    void withdraw(
+            double amount, AccountTransactionType type, String eventName, String description) {
+        userAccount.withdraw(amount, type, eventName, description);
+        if (userAccount.getBalance() < 0) blocked = true;
+    }
+
+    public void topUp(double amount) {
+        userAccount.deposit(amount, AccountTransactionType.TOP_UP, null, "Account top-up");
+    }
+
+    public java.util.List<AccountTransaction> getAccountTransactions() {
+        return userAccount.getTransactions();
     }
 
     boolean canAfford(double amount) {
@@ -69,8 +76,13 @@ public final class User implements Serializable {
                 && Double.isFinite(userAccount.getBalance() + change);
     }
 
-    void applyBalanceChange(double change) {
-        if (change > 0.0) deposit(change);
-        else if (change < 0.0) withdraw(-change);
+    void applyBalanceChange(double change, String eventName, String description) {
+        applyBalanceChange(change, AccountTransactionType.ORDER_BOOK_TRADE, eventName, description);
+    }
+
+    void applyBalanceChange(
+            double change, AccountTransactionType type, String eventName, String description) {
+        if (change > 0.0) deposit(change, type, eventName, description);
+        else if (change < 0.0) withdraw(-change, type, eventName, description);
     }
 }

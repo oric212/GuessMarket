@@ -12,9 +12,11 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.concurrent.Task;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
@@ -46,6 +48,7 @@ public final class EventsController {
     private final VBox methodDetails = new VBox();
     private final VBox participantsArea = new VBox();
     private EventDTO selectedEvent;
+    private boolean applyingSnapshot;
 
     public EventsController(Engine engine) {
         this.engine = engine;
@@ -57,9 +60,35 @@ public final class EventsController {
 
     public Parent getView() { return root; }
 
+    public int selectedEventId() { return selectedEvent == null ? -1 : selectedEvent.id(); }
+
+    public void applySynchronizedEvents(List<EventDTO> refreshed, EventStateDTO selectedDetails) {
+        Integer selectedId = selectedEvent == null ? null : selectedEvent.id();
+        applyingSnapshot = true;
+        try {
+            if (!events.equals(refreshed)) events.setAll(refreshed);
+            updateFilterPredicate();
+            restoreSelection(selectedId);
+        } finally {
+            applyingSnapshot = false;
+        }
+        if (selectedDetails != null && selectedEvent != null
+                && selectedDetails.id() == selectedEvent.id()) showState(selectedDetails);
+    }
+
     public void refreshEvents() {
         Integer selectedId = selectedEvent == null ? null : selectedEvent.id();
-        events.setAll(engine.getEventSummaries());
+        Task<List<EventDTO>> task = new Task<>() {
+            @Override protected List<EventDTO> call() { return engine.getEventSummaries(); }
+        };
+        task.setOnSucceeded(event -> applyEvents(task.getValue(), selectedId));
+        task.setOnFailed(event -> showDetailsError(new RuntimeException(messageOf(task.getException()))));
+        Thread worker = new Thread(task, "guessmarket-events-refresh");
+        worker.setDaemon(true); worker.start();
+    }
+
+    private void applyEvents(List<EventDTO> refreshed, Integer selectedId) {
+        events.setAll(refreshed);
         updateFilterPredicate();
         restoreSelection(selectedId);
     }
@@ -203,19 +232,17 @@ public final class EventsController {
     }
 
     private Parent buildParticipants(EventStateDTO state) {
-        String first = state.options().get(0);
-        String second = state.options().get(1);
         TableView<EventParticipantDTO> table = new TableView<>();
         configureTable(table, "No participants yet.");
         table.getColumns().add(column("Username", EventParticipantDTO::username, 130));
-        table.getColumns().add(column(first + " quantity", dto -> dto.holdingsByOption().get(first), 125));
-        table.getColumns().add(column(first + " value",
-                dto -> formatNullable(dto.currentHoldingValueByOption().get(first)), 115));
-        table.getColumns().add(column(second + " quantity", dto -> dto.holdingsByOption().get(second), 125));
-        table.getColumns().add(column(second + " value",
-                dto -> formatNullable(dto.currentHoldingValueByOption().get(second)), 115));
+        for (String option : state.options()) {
+            table.getColumns().add(column(option + " quantity",
+                    dto -> dto.holdingsByOption().get(option), 125));
+            table.getColumns().add(column(option + " value",
+                    dto -> formatNullable(dto.currentHoldingValueByOption().get(option)), 115));
+        }
         table.getColumns().add(column("Reserved / available",
-                dto -> compactQuantities(dto, first, second), 210));
+                dto -> compactQuantities(dto, state.options()), 210));
         table.getColumns().add(column("Cash summary", EventsController::cashSummary, 215));
         table.getItems().setAll(state.participants());
         table.setPrefHeight(220);
@@ -230,13 +257,23 @@ public final class EventsController {
     private void selectEvent(EventDTO event) {
         if (event == null) return;
         selectedEvent = event;
-        refreshSelectedDetails();
+        if (!applyingSnapshot) refreshSelectedDetails();
     }
 
     private void refreshSelectedDetails() {
         if (selectedEvent == null) return;
+        int eventId = selectedEvent.id();
+        Task<EventStateDTO> task = new Task<>() {
+            @Override protected EventStateDTO call() { return engine.getEventState(eventId); }
+        };
+        task.setOnSucceeded(event -> showState(task.getValue()));
+        task.setOnFailed(event -> showDetailsError(new RuntimeException(messageOf(task.getException()))));
+        Thread worker = new Thread(task, "guessmarket-event-details");
+        worker.setDaemon(true); worker.start();
+    }
+
+    private void showState(EventStateDTO state) {
         try {
-            EventStateDTO state = engine.getEventState(selectedEvent.id());
             idValue.setText(Integer.toString(state.id()));
             nameValue.setText(state.eventName());
             descriptionValue.setText(state.description());
@@ -293,7 +330,7 @@ public final class EventsController {
         if (preferred != null) {
             selectedEvent = preferred;
             eventTable.getSelectionModel().select(preferred);
-            refreshSelectedDetails();
+            if (!applyingSnapshot) refreshSelectedDetails();
         } else if (!filteredEvents.isEmpty()) {
             eventTable.getSelectionModel().selectFirst();
         } else {
@@ -330,10 +367,11 @@ public final class EventsController {
         emptyDetails.setManaged(true);
     }
 
-    private static String compactQuantities(EventParticipantDTO dto, String first, String second) {
-        return first + ": " + dto.reservedSellByOption().get(first) + " / "
-                + dto.availableToSellByOption().get(first) + "  |  " + second + ": "
-                + dto.reservedSellByOption().get(second) + " / " + dto.availableToSellByOption().get(second);
+    private static String compactQuantities(EventParticipantDTO dto, List<String> options) {
+        return options.stream()
+                .map(option -> option + ": " + dto.reservedSellByOption().get(option)
+                        + " / " + dto.availableToSellByOption().get(option))
+                .collect(java.util.stream.Collectors.joining("  |  "));
     }
 
     private static String cashSummary(EventParticipantDTO dto) {

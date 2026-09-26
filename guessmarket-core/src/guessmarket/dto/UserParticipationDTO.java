@@ -20,11 +20,15 @@ public record UserParticipationDTO(
         double totalCashReceived,
         Double profitLoss) {
     public UserParticipationDTO {
-        holdingsByOption = Map.copyOf(holdingsByOption);
-        reservedSellByOption = Map.copyOf(reservedSellByOption);
-        availableToSellByOption = Map.copyOf(availableToSellByOption);
+        holdingsByOption = java.util.Collections.unmodifiableMap(
+                new java.util.LinkedHashMap<>(holdingsByOption));
+        reservedSellByOption = java.util.Collections.unmodifiableMap(
+                new java.util.LinkedHashMap<>(reservedSellByOption));
+        availableToSellByOption = java.util.Collections.unmodifiableMap(
+                new java.util.LinkedHashMap<>(availableToSellByOption));
         trades = List.copyOf(trades);
-        cumulativePurchaseAmountByOption = Map.copyOf(cumulativePurchaseAmountByOption);
+        cumulativePurchaseAmountByOption = java.util.Collections.unmodifiableMap(
+                new java.util.LinkedHashMap<>(cumulativePurchaseAmountByOption));
         currentHoldingValueByOption = java.util.Collections.unmodifiableMap(
                 new java.util.LinkedHashMap<>(currentHoldingValueByOption));
     }
