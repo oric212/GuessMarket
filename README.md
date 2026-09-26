@@ -1,105 +1,518 @@
-# GuessMarket — Exercise 02
+# GuessMarket
 
-GuessMarket is a Java 25 / JavaFX 25 prediction-market application. Exercise 02 adds multiple independent user accounts, Market Maker assignments, event lifecycle management, a two-sided Order Book, and a graphical interface while retaining LMSR.
+GuessMarket is a multi-user prediction-market platform built around two different market mechanisms: **LMSR automated market making** and a **two-sided limit order book**.
 
+The project contains a shared Java domain engine, a Tomcat REST server, a JavaFX desktop client, and a browser client built with Vite and vanilla JavaScript. Users can join the market, fund accounts, trade event outcomes, act as market makers, monitor prices and holdings, and settle events when an outcome is known.
 
-## Requirements and launch
+## Highlights
 
-The submitted package targets 64-bit Windows and requires Java 25. It bundles JavaFX 25 and JAXB runtime dependencies; IntelliJ is not required.
+- Multi-user prediction markets with independent balances and portfolios
+- Two trading mechanisms:
+  - **LMSR** automated market maker
+  - **Order Book** with BUY/SELL price-time priority
+- Event lifecycle: `NOT_STARTED -> ACTIVE -> CLOSED`
+- Market Maker ownership and authorization
+- Per-user holdings, reservations, balances, transaction history, and participation data
+- Event settlement and winner payouts
+- Commission support
+- REST API backed by Tomcat 11
+- JavaFX desktop client
+- Browser client with live polling and trading actions
+- XML market import with XSD and semantic validation
+- Immutable query/DTO layer between the domain and presentation layers
+- Concurrency protection around shared server state
 
-1. Extract the complete ZIP. Keep `lib` beside the JARs and `run.bat`.
-2. From Windows Command Prompt, run `"<extracted-directory>\run.bat"`. Paths containing spaces work.
-3. The launcher uses `%JAVA_HOME%\bin\java.exe` when `JAVA_HOME` is set, otherwise `java` from `PATH`, and checks for Java 25.
+---
 
-The application loads Exercise 02 XML exclusively through **Load File**. A valid load replaces the current market; an invalid load reports its cause and preserves the previous market.
+## How GuessMarket Works
 
-To reproduce the package, set `JAVAFX_SDK` to a JavaFX 25 SDK and `JAXB_HOME` to a JAXB RI directory containing `mod`, then run `build-submission.bat`. It recreates only `submission-build` and `submission`.
+A GuessMarket event represents a question with a set of possible outcomes. Users trade shares in those outcomes, and the market price changes as participants express their expectations through trading.
 
-## Architecture
+Each event has a designated **Market Maker (MM)**. The Market Maker owns the event lifecycle and is responsible for starting and eventually closing the event.
 
-- `guessmarket-core`: passive, JavaFX-independent `Engine`, domain, XML/JAXB validation, immutable query DTOs, and result DTOs.
-- `guessmarket-javafx`: active UI. `GuessMarketApplication` starts JavaFX; `MainController` handles loading/refresh; `EventsController` monitors markets; `UsersController` exposes selected-user actions and participation details.
-- `guessmarket-console`: retained Exercise 01 client, not the Exercise 02 launch target.
+When an event closes, a winning option is selected and the market is settled.
 
-The JavaFX layer pulls immutable snapshots and invokes typed Engine operations. Core has no JavaFX properties, listeners, tasks, or callbacks. XML loading uses a JavaFX `Task`, visible progress, and a short simulated delay.
+### Event Lifecycle
 
-## Users and Market Makers
+1. **Not Started** — the event exists but cannot yet be traded.
+2. **Active** — users may trade according to the event's market mechanism.
+3. **Closed** — a winning outcome has been selected and settlement has been performed.
 
-Every user has an independent balance and may be Market Maker for several events. Only the assigned MM starts or closes an event. A negative-causing transaction completes, then blocks that user from initiating operations; passive settlement credits remain possible. There is no top-up.
+Only the event's Market Maker may start or close it.
 
-The Users screen shows accounts, MM assignments, active/closed participations, personal LMSR history, Order Book holdings/accounting, and every event available for a first action. Successful actions refresh both screens.
+---
 
-## Trading methods
+# Trading Mechanisms
 
-LMSR startup transfers its calculated subsidy from the MM. Purchases use the LMSR cost function. Closing pays one unit per winning share, applies configured commission, and returns remaining subsidy to the MM.
+## LMSR
 
-Order Book events have independent option books with BUY/SELL price-time priority, partial/multi-order fills, SELL reservations, optional complementary minting, commissions, and backed settlement. Closing pays `d` per winning share, zero for losing shares, and drains the event account.
+GuessMarket implements a **Logarithmic Market Scoring Rule (LMSR)** automated market maker.
 
-## Skin bonus
+Unlike a traditional order book, an LMSR market does not require another trader on the opposite side of a transaction. The market maker continuously provides liquidity and calculates prices from the outstanding quantities of each option.
 
-Skin switching starts disabled, preserving the original appearance. In the global header, select **Enable skins**, then choose **Default**, **Ocean**, or **Dusk** from the Skin selector. Clearing **Enable skins** immediately restores the original default skin on both Events and Users screens.
+The LMSR implementation includes:
 
-## Animation bonus
+- Dynamic option prices
+- Quantity-based purchase cost calculation
+- Configurable liquidity parameter `b`
+- Market subsidy calculation
+- Market Maker funding at event start
+- Per-user purchase history
+- Holdings tracking
+- Commission handling
+- Event settlement
+- Remaining subsidy return to the Market Maker
 
-Animations also start disabled. Select **Enable animations** in the global header to enable a 250 ms screen fade when switching tabs, a 350 ms scale confirmation after a successful XML load, and a 300 ms fade confirmation after a successful user action. Clearing the checkbox bypasses all three effects; application actions and refreshes are never delayed by them.
+As users buy shares, the relative prices of the outcomes change automatically.
 
-## Create Event bonus
+## Order Book
 
-Select a user on the Users screen and complete the **Create Event** section to create an LMSR or Order Book event. The selected user becomes its Market Maker, and the new `NOT_STARTED` event immediately appears in the normal event and MM views so it can be started through the existing workflow.
+Order Book events use a traditional two-sided market.
 
-## Implementation choices
+Each option maintains BUY and SELL liquidity with:
 
-- Events, LMSR state, holdings, DTOs, and independent Order Book option books support two or more ordered options.
-- Event lifecycle and trading APIs accept either the legacy internal integer ID or the normalized unique event name.
-- EX03 does not define N-outcome MINT semantics; auto-mint therefore remains available only for complementary two-option Order Book events.
-- Ordinary crossing executes at the resting order's price.
-- Auto-mint keeps the resting leg's offered price; the incoming leg is `d - resting price`.
-- OB holding value uses MID, otherwise LAST, otherwise `N/A`.
-- Non-divisible `initial / d` is rejected instead of truncating shares.
-- Cumulative gross purchase amount is historical spend, not remaining-position cost basis.
-- Closed OB P/L is `total cash received - total cash paid`; before closure it is unavailable.
-- Bonuses 1 (skin switching), 2 (animations), and 4 (Create Event) are implemented.
+- Price-time priority
+- Partial fills
+- Multi-order matching
+- Separate bid and ask sides
+- SELL-side share reservation
+- Trade accounting
+- Commission handling
+- `LAST`, `BID`, `ASK`, `MID`, and `SPREAD` market statistics
+- Optional complementary-share minting for supported two-option markets
 
-## Main components
+An incoming order may execute against several resting orders until it is completely filled or no compatible liquidity remains.
 
-- `Engine` / `GuessMarketEngine`: API, atomic replacement, DTO projection, persistence.
-- `XMLLoader`: JAXB conversion and Exercise 01/02 semantic validation.
-- `Event`: lifecycle, MM authorization, funding, trading coordination, commission, settlement.
-- `LMSR`: costs, prices, subsidy, quantities.
-- `OrderBook`: books, matching, partial fills, statistics, and mint planning.
-- `User` / `UserParticipation`: balance/block state, holdings, reservations, history, cash totals.
-- DTO packages: immutable presentation-safe snapshots with no mutable domain leakage.
-- `MainController`: FileChooser, Task/progress/error state, cross-screen refresh.
-- `EventsController`: composed filters and method-specific monitoring.
-- `UsersController`: selected-user workspace, MM actions, purchases/orders, and notifications.
+Ordinary crossing executes at the resting order's price.
 
-Framework-free regression programs live under the two test directories. The package ships production classes and CSS only and does not depend on IDE output or source directories.
+---
 
-## EX03 server foundation
+# Users and Accounts
 
-`guessmarket-server` is the Tomcat web module. Run `build-server.bat` with Java 25 to produce the single deployable artifact at `server-dist/GuessMarket.war`. The build downloads pinned compile/runtime dependencies into the ignored `.deps` cache, compiles core and server sources, and packages Gson plus JAXB runtime dependencies under `WEB-INF/lib`. The Servlet API is compile-only because Tomcat provides it.
+Every user has an independent account and market state.
 
-Deploy `GuessMarket.war` to Tomcat 11's `webapps` directory. Its stable context path is `/GuessMarket`, with these initial JSON endpoints:
+GuessMarket tracks:
 
-- `GET /GuessMarket/api/health` returns deployment status.
-- `GET /GuessMarket/api/events` returns immutable event summaries.
-- `GET /GuessMarket/api/events/{id-or-url-encoded-event-name}` returns current event details.
-- `POST /GuessMarket/api/login` accepts `{"username":"Alice"}`, atomically registers a runtime user, and returns a UUID session token.
-- `GET /GuessMarket/api/users` returns only public username, balance, and Market Maker status.
-- `GET /GuessMarket/api/user/me` returns the token owner's private user/account state.
-- `POST /GuessMarket/api/user/account/topup` accepts `{"amount":25.0}` and returns the updated private state.
-- `POST /GuessMarket/api/events/upload` accepts one authenticated multipart field named `file` containing an EX03 `.xml` file.
-- `POST /GuessMarket/api/events/{id}/start` starts an owned event.
-- `POST /GuessMarket/api/events/{id}/purchases` purchases LMSR shares.
-- `POST /GuessMarket/api/events/{id}/orders` submits an Order Book BUY or SELL.
-- `POST /GuessMarket/api/events/{id}/close` closes an owned event with a winning option.
+- Current cash balance
+- Market Maker assignments
+- Holdings per event and option
+- Reserved shares for pending SELL orders
+- LMSR purchases
+- Order Book activity
+- Event participation
+- Cash paid and received
+- Transaction history
+- Settlement results
 
-Private endpoints identify the caller with the `X-GuessMarket-Session` header. Usernames are trimmed and unique case-insensitively for the lifetime of the server. EX03 does not specify a nonzero opening grant, so runtime users start at `0.00` and add funds through top-up; EX02 XML users retain their configured initial cash. Logout is not yet required, so registrations and tokens remain active until the in-memory server state is restarted.
+Account mutations are centralized on the server so that top-ups, market funding, purchases, trades, commissions, payouts, and subsidy transfers all produce consistent accounting records.
 
-Each user account stores real immutable transaction entries rather than reconstructing history. Entries have a deterministic sequence, transaction type, signed balance change, resulting balance, optional event name, and description. Creation, top-up, event funding, purchases/trades, commissions, settlement, and subsidy return all use the centralized account mutation path. Other users never receive this private history.
+Runtime users are created by logging in with a username. Usernames are unique case-insensitively for the lifetime of the running server.
 
-EX03 uploads are validated from the request stream against `schema/GM-EX3-Schema.xsd`; the raw XML is never saved or written to a temporary file. The schema permits one or two ordered options, while the established event/trading domain requires two options for a loadable event. The EX03 format omits `GM-users` and event `id`, and assigns the authenticated uploader as MM for every imported event. Imports are cumulative and atomic under the server write lock: all events are parsed/prepared first, and any malformed configuration or case-insensitive name collision within the upload or existing market adds nothing. Uploaded events remain `NOT_STARTED`; funding is deferred until the MM explicitly starts them in a later workflow. The legacy EX02 path loader retains its replace/users/ID semantics for regression compatibility.
+---
 
-Errors use HTTP status codes and a JSON body shaped as `{"success":false,"code":"...","message":"..."}`. State lives once per deployed web application in the servlet context and intentionally disappears at restart. `ServerState` applies a fair read/write lock: DTO queries may run concurrently, while login, top-up, upload, lifecycle, and trading calls use the exclusive write path to preserve identity and accounting atomicity. Automatic polling and chat remain deferred to Prompt 6.
+# Market Makers
 
-The JavaFX application is an HTTP client and never creates an authoritative local engine. It opens on login, defaults to `http://localhost:8080/GuessMarket/api/`, stores the returned session token in memory, and centralizes JSON, multipart upload, headers, and structured error decoding in `GuessMarketApiClient`. Set the `guessmarket.server` system property to override the API base URL. Network calls run on background JavaFX tasks; successful uploads, top-ups, lifecycle operations, and trades immediately refresh affected views. Automatic recurring refresh remains deferred to Prompt 6.
+A user may act as the Market Maker for multiple events.
+
+Market Makers can:
+
+- Own imported events
+- Start their events
+- Supply required market funding
+- Monitor market activity
+- Close events
+- Select winning outcomes
+- Receive remaining LMSR subsidy where applicable
+
+Lifecycle permissions are enforced by the server rather than relying only on client-side controls.
+
+---
+
+# Web Client
+
+The browser client lives in `guessmarket-web` and is built with **Vite + vanilla JavaScript**.
+
+It provides an authenticated interface with two primary workspaces.
+
+## Events
+
+The Events screen provides:
+
+- Event summary table
+- Filtering by trading method, state, and commission
+- Event selection
+- Detailed market inspection
+- LMSR prices and quantities
+- LMSR market history
+- Order Book configuration
+- `LAST`, `BID`, `ASK`, `MID`, and `SPREAD` statistics
+- Pending Order Book state
+- Closed-event winner information
+- Empty, loading, error, retry, and recovery states
+
+## User
+
+The User screen provides:
+
+- Public user list
+- Signed-in account information
+- Account top-up
+- Transaction history
+- Market Maker assignments
+- Event participations
+- Holdings
+- LMSR share purchases
+- Order Book BUY and SELL submission
+- Event start controls for owned markets
+- Event close controls with winner selection
+
+The authenticated screens poll the server approximately every **850 ms** while active.
+
+Refreshes are coalesced to avoid overlapping update requests, and user selections and unsent form values remain stable while fresh server snapshots are applied.
+
+Session data is stored in `sessionStorage`.
+
+Authenticated requests use the server-issued token through:
+
+```text
+X-GuessMarket-Session
+```
+
+---
+
+# JavaFX Client
+
+GuessMarket also includes a JavaFX desktop client.
+
+Its responsibilities include:
+
+- Login and server communication
+- Event monitoring
+- User and account views
+- Market Maker operations
+- Trading
+- XML upload
+- Background network requests
+- Structured error handling
+
+The JavaFX application acts as an HTTP client of the Tomcat server rather than maintaining a separate authoritative market engine.
+
+This keeps the server as the single source of truth for market state.
+
+---
+
+# REST Server
+
+`guessmarket-server` is a Jakarta Servlet application designed for **Tomcat 11**.
+
+The default deployment context is:
+
+```text
+/GuessMarket
+```
+
+The REST API is exposed under:
+
+```text
+/GuessMarket/api/
+```
+
+## Main API Endpoints
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/health` | Check server health |
+| `POST` | `/api/login` | Login or register a runtime user |
+| `GET` | `/api/events` | Retrieve event summaries |
+| `GET` | `/api/events/{id}` | Retrieve detailed event state |
+| `GET` | `/api/users` | Retrieve public user information |
+| `GET` | `/api/user/me` | Retrieve the authenticated user's private state |
+| `POST` | `/api/user/account/topup` | Add funds to the current account |
+| `POST` | `/api/events/upload` | Import events from XML |
+| `POST` | `/api/events/{id}/start` | Start an owned event |
+| `POST` | `/api/events/{id}/purchases` | Purchase LMSR shares |
+| `POST` | `/api/events/{id}/orders` | Submit an Order Book order |
+| `POST` | `/api/events/{id}/close` | Close an owned event |
+
+Authenticated requests include:
+
+```text
+X-GuessMarket-Session: <session-token>
+```
+
+Server errors use HTTP status codes together with structured JSON:
+
+```json
+{
+  "success": false,
+  "code": "ERROR_CODE",
+  "message": "Human-readable explanation"
+}
+```
+
+---
+
+# XML Market Import
+
+Markets can be imported from XML and fully validated before they become visible to users.
+
+The import pipeline includes:
+
+- XSD validation
+- Semantic validation
+- Duplicate-name detection
+- Trading-method configuration validation
+- Event-option validation
+- Atomic import behavior
+
+The server reads uploaded XML directly from the request stream rather than saving the raw upload to disk.
+
+An import is prepared completely before being committed to server state. If any part fails validation, no partial market state is added.
+
+Imported events initially enter the `NOT_STARTED` state.
+
+Market funding is deferred until the assigned Market Maker explicitly starts the event.
+
+---
+
+# Architecture
+
+GuessMarket separates domain logic, networking, and presentation into independent modules.
+
+```text
+GuessMarket/
+├── guessmarket-core/      Domain model and trading engine
+├── guessmarket-server/    Tomcat/Jakarta REST server
+├── guessmarket-javafx/    JavaFX desktop client
+├── guessmarket-web/       Vite browser client
+├── guessmarket-console/   Console interface
+├── schema/                XML schemas
+└── Docs/                  Supporting documentation
+```
+
+## Core
+
+`guessmarket-core` contains the main business rules and market implementation.
+
+Important components include:
+
+- `Engine`
+- `GuessMarketEngine`
+- `Event`
+- `LMSR`
+- `OrderBook`
+- `User`
+- `UserParticipation`
+- XML loading and validation
+- Immutable result and query DTOs
+
+The core module is independent of JavaFX.
+
+## Server
+
+The server owns the authoritative application state.
+
+Shared state exists once per deployed web application.
+
+A fair read/write lock allows multiple concurrent read operations while serializing state-changing operations such as:
+
+- Login
+- Top-up
+- XML import
+- Event start
+- Event close
+- LMSR purchases
+- Order Book submissions
+- Settlement
+
+## Client Boundary
+
+Clients consume immutable snapshots rather than receiving references to mutable domain objects.
+
+This allows the same backend to support multiple presentation layers without coupling UI logic to the market engine.
+
+---
+
+# Technology Stack
+
+## Backend
+
+- Java 25
+- Jakarta Servlet API
+- Tomcat 11
+- Gson
+- JAXB
+- XML Schema / XSD validation
+
+## Desktop
+
+- JavaFX 25
+
+## Web
+
+- Vite
+- Vanilla JavaScript
+- HTML
+- CSS
+- Fetch API
+
+---
+
+# Running GuessMarket
+
+## Requirements
+
+- Java 25
+- Tomcat 11
+- Node.js
+- npm
+- Windows for the provided helper scripts
+
+## Build the Server
+
+From the repository root:
+
+```bat
+build-server.bat
+```
+
+The server build produces:
+
+```text
+server-dist/GuessMarket.war
+```
+
+Deploy the WAR into Tomcat's `webapps` directory and start Tomcat.
+
+The API should then be available at:
+
+```text
+http://localhost:8080/GuessMarket/api/
+```
+
+To verify the deployment:
+
+```text
+http://localhost:8080/GuessMarket/api/health
+```
+
+---
+
+## Run the Web Client
+
+From the repository root:
+
+```bash
+cd guessmarket-web
+npm install
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:5173
+```
+
+During development, Vite proxies:
+
+```text
+/api/*
+```
+
+to:
+
+```text
+http://localhost:8080/GuessMarket/api/*
+```
+
+### Production Build
+
+```bash
+npm run build
+```
+
+The generated bundle is written to:
+
+```text
+guessmarket-web/dist
+```
+
+To preview the production build locally:
+
+```bash
+npm run preview
+```
+
+---
+
+# Testing
+
+The repository contains regression testing for the Java layers and API-oriented tests for the web client.
+
+Useful commands include:
+
+```bat
+test-server.bat
+```
+
+```bat
+test-javafx.bat
+```
+
+From `guessmarket-web`:
+
+```bash
+npm test
+```
+
+The tests cover behavior including:
+
+- Market operations
+- Trading rules
+- Account mutations
+- Server contracts
+- Error handling
+- Web API behavior
+- Regression-sensitive workflows
+
+---
+
+# Important Implementation Details
+
+Several implementation decisions are important to GuessMarket's behavior:
+
+- Market operations are validated server-side even when clients perform their own validation.
+- Order Book matching uses price-time priority.
+- Crossing orders execute at the resting order's price.
+- SELL orders reserve shares to prevent the same holdings from being sold multiple times.
+- Complementary minting is restricted to supported two-option Order Book markets.
+- Order Book position value prefers `MID`, then `LAST`, otherwise remains unavailable.
+- Closed Order Book profit/loss is calculated from total cash received minus total cash paid.
+- Invalid non-divisible funding configurations are rejected instead of silently truncating shares.
+- Transaction history records actual account mutations instead of reconstructing them afterward.
+- Server DTOs are immutable presentation-safe snapshots.
+- The authoritative market state exists on the server.
+
+---
+
+# Persistence Model
+
+GuessMarket currently keeps runtime state in memory.
+
+This includes:
+
+- Users
+- Sessions
+- Account balances
+- Events
+- Holdings
+- Orders
+- Trades
+- Transaction history
+
+Restarting the deployed server application resets the runtime state.
+
+This keeps the current implementation focused on prediction-market mechanics, accounting, concurrency, client/server architecture, and trading behavior.
+
+A natural future extension would be adding persistent database storage while preserving the existing domain and REST API boundaries.
